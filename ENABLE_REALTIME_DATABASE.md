@@ -32,18 +32,6 @@
 ### Step 5: Update Firebase Config
 Open `chess-app/config/firebase.ts` and add the `databaseURL`:
 
-```typescript
-const firebaseConfig = {
-  apiKey: "AIzaSyDrnA-lXKgcU2m87-vBsPF1DaBcF3MLZH8",
-  authDomain: "myapp-6f421.firebaseapp.com",
-  databaseURL: "https://myapp-6f421-default-rtdb.firebaseio.com/", // ADD THIS
-  projectId: "myapp-6f421",
-  storageBucket: "myapp-6f421.firebasestorage.app",
-  messagingSenderId: "422129025129",
-  appId: "1:422129025129:web:9c106281f132f14d5b22f8"
-};
-```
-
 ### Step 6: Set Security Rules (Important!)
 1. In Realtime Database, go to **"Rules"** tab
 2. For development/testing, use:
