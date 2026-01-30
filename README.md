@@ -1,5 +1,10 @@
 # Welcome to your Chess AI app 👋
 
+
+The Sample UI from the App: 
+| Home Screen | AI Chess Screen |
+|-------------|-----------------|
+| ![](assets/Home_screen.jpeg) | ![](assets/Board_screen.jpeg) |
 This is an [Expo](https://expo.dev) project created with [`create-expo-app`](https://www.npmjs.com/package/create-expo-app).
 
 ## Get started
