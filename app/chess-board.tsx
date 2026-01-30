@@ -1,7 +1,11 @@
+/* Board for offline chess game */
+
 import { StyleSheet, View, Text, TouchableOpacity, Image } from 'react-native';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { useState } from 'react';
 import { pieceImages } from '../constants/pieces';
+import Ionicons from '@expo/vector-icons/Ionicons';
+
 
 export default function ChessBoardScreen() {
   const router = useRouter();
@@ -269,7 +273,7 @@ export default function ChessBoardScreen() {
           style={styles.backButton}
           onPress={() => router.back()}
         >
-          <Text style={styles.backButtonText}>Back to Home</Text>
+          <Ionicons name="arrow-back" size={24} color="black" />
         </TouchableOpacity>
         <Text style={styles.title}>Chess Board</Text>
       </View>
@@ -345,11 +349,6 @@ const styles = StyleSheet.create({
   },
   backButton: {
     marginRight: 16,
-  },
-  backButtonText: {
-    fontSize: 16,
-    color: '#007AFF',
-    fontWeight: '600',
   },
   title: {
     fontSize: 20,

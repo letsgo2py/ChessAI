@@ -1,0 +1,37 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <title>Socket Test Client</title>
+  </head>
+  <body>
+    <h2>Socket.IO Test Client</h2>
+    <input id="name" placeholder="Player name" />
+    <button onclick="join()">Join Matchmaking</button>
+
+    <pre id="log"></pre>
+
+    <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
+    <script>
+      const SERVER_IP = "http://172.16.5.233:3001";   // LAPTOP IP (DEV MODE)
+
+      const socket = io(SERVER_IP);
+
+      const log = (msg) => {
+        document.getElementById("log").textContent += msg + "\n";
+      };
+
+      socket.on("connect", () => log("Connected: " + socket.id));
+      socket.on("matchmakingStatus", (data) => log("Status: " + JSON.stringify(data)));
+      socket.on("matchFound", (data) => log("MATCH FOUND: " + JSON.stringify(data)));
+      socket.on("gameState", (data) => log("GAME STATE: " + JSON.stringify(data)));
+      socket.on("moveMade", (data) => log("MOVE: " + JSON.stringify(data)));
+      socket.on("opponentDisconnected", () => log("Opponent disconnected"));
+
+      function join() {
+        const name = document.getElementById("name").value || "BrowserPlayer";
+        socket.emit("joinMatchmaking", { playerName: name });
+        log("Sent joinMatchmaking for " + name);
+      }
+    </script>
+  </body>
+</html>

@@ -9,8 +9,11 @@ export default function MatchmakingScreen() {
   const [queuePosition, setQueuePosition] = useState<number | null>(null);
 
   useEffect(() => {
+    console.log("Calling match making screen:")
     const socket = connectSocket();
 
+    // listening for a built-in Socket.IO event called "connect".
+    // This event fires once the WebSocket connection is successfully established
     socket.on('connect', () => {
       console.log('Connected to server');
       // Join matchmaking queue
@@ -67,6 +70,7 @@ export default function MatchmakingScreen() {
   return (
     <View style={styles.container}>
       <View style={styles.content}>
+        
         {status === 'searching' && (
           <>
             <ActivityIndicator size="large" color="#007AFF" />

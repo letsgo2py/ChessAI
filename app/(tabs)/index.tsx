@@ -46,7 +46,7 @@ export default function HomeScreen() {
   return (
     <View style={styles.container}>
       <View style={styles.titleContainer}>
-        <Text style={styles.titleText}>CHESS APP</Text>
+        <Text style={styles.titleText}>CHESS TIME</Text>
       </View>
       
       <Modal

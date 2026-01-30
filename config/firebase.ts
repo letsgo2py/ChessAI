@@ -1,4 +1,5 @@
 import { initializeApp } from 'firebase/app';
+import { getAuth } from 'firebase/auth';
 import { getDatabase } from 'firebase/database';
 import Constants from 'expo-constants';
 
@@ -31,6 +32,7 @@ if (missingFields.length > 0) {
 // Initialize Firebase
 const app = initializeApp(firebaseConfig);
 
+export const auth = getAuth(app);
 // Initialize Realtime Database
 export const database = getDatabase(app);
 export default app;

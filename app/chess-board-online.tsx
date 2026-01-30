@@ -174,11 +174,25 @@ export default function ChessBoardOnlineScreen() {
       return;
     }
 
-    socket.on('connect', () => {
+    const handleConnect = () => {
+      console.log("UI CONNECT HANDLER FIRED");
       setIsConnected(true);
-      // Request current game state
       socket.emit('getGameState', gameId);
-    });
+    };
+
+    const handleDisconnect = () => {
+      console.log("UI DISCONNECT HANDLER FIRED");
+      setIsConnected(false);
+    };
+
+    socket.on('connect', handleConnect);
+    socket.on('disconnect', handleDisconnect);
+
+    //  CRITICAL: handle already-connected socket
+    if (socket.connected) {
+      console.log("SOCKET WAS ALREADY CONNECTED");
+      handleConnect();
+    }
 
     socket.on('gameState', (data) => {
       setBoard(data.board);
@@ -213,6 +227,8 @@ export default function ChessBoardOnlineScreen() {
 
   // Handle square click
   const handleSquarePress = (row: number, col: number) => {
+    console.log("CLICK:", row, col, "currentPlayer:", currentPlayer, "playerColor:", playerColor);
+    console.log("**connect: ", isConnected)
     if (currentPlayer !== playerColor || !isConnected) return;
 
     const socket = getSocket();
@@ -318,7 +334,7 @@ export default function ChessBoardOnlineScreen() {
                   isPossibleMove && styles.possibleMoveSquare,
                 ]}
                 onPress={() => handleSquarePress(square.row, square.col)}
-                disabled={currentPlayer !== playerColor || !isConnected}
+                // disabled={currentPlayer !== playerColor || !isConnected}
               >
                 {piece ? (
                   <Image

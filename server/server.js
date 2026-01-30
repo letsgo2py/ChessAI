@@ -14,7 +14,7 @@ const io = new Server(server, {
   }
 });
 
-// Store matchmaking queue and active games
+// Waitlisting for players to find a match
 const matchmakingQueue = [];
 const activeGames = new Map(); // gameId -> { player1, player2, board, currentPlayer, moves }
 
@@ -35,10 +35,17 @@ const initialBoard = [
   ["wr","wn","wb","wq","wk","wb","wn","wr"],
 ];
 
+// When a client connects to the server
 io.on('connection', (socket) => {
+  console.log(
+    'User connected:',
+    socket.id,
+    'from',
+    socket.handshake.address
+  );
+  // each socket for -> One browser / one phone
   console.log('User connected:', socket.id);
 
-  // Join matchmaking queue
   socket.on('joinMatchmaking', (playerData) => {
     console.log('Player joined matchmaking:', socket.id, playerData);
     
@@ -48,13 +55,14 @@ io.on('connection', (socket) => {
       matchmakingQueue.splice(existingIndex, 1);
     }
 
-    // Add to queue
+    // Add the newly updated user to the queue
     matchmakingQueue.push({
       socketId: socket.id,
       playerName: playerData.playerName || 'Player',
       joinedAt: Date.now()
     });
 
+    // Telling the player status
     socket.emit('matchmakingStatus', { status: 'searching', queuePosition: matchmakingQueue.length });
 
     // Try to match players
