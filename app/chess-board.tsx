@@ -1,178 +1,77 @@
 /* Board for offline chess game */
 
-import { StyleSheet, View, Text, TouchableOpacity, Image } from 'react-native';
-import { useRouter, useLocalSearchParams } from 'expo-router';
-import { useState } from 'react';
+import { StyleSheet, View, Text, TouchableOpacity, Image, Animated, Dimensions } from 'react-native';
+import { useLocalSearchParams } from 'expo-router';
+import { useState, useRef } from 'react';
+import {SafeAreaView, SafeAreaProvider} from 'react-native-safe-area-context';
 import { pieceImages } from '../constants/pieces';
-import Ionicons from '@expo/vector-icons/Ionicons';
 
+
+import TopHeader from './top-header';
+import { getPieceColor } from '@/utils/chess-utils';
+import { getAnimatedValue } from '@/utils/animation-utils';
+import { getPossibleMoves } from '@/utils/chessMoves';
+import { buildPiecesFromBoard } from '@/utils/chessPieces';
+
+import { INITIAL_BOARD } from '@/constants/chessBoard';
+
+const screenWidth = Dimensions.get('window').width;
+const BOARD_SIZE = screenWidth * 0.97; // 97% of screen width
+const SQUARE_SIZE = Math.floor(BOARD_SIZE / 8);   // Each square size
+
+type AnimatedPiece = {
+  x: Animated.Value;
+  y: Animated.Value;
+};
+
+type Piece = {
+  row: number;
+  col: number;
+  type: keyof typeof pieceImages;
+};
+
+type Pieces = Record<string, Piece>;
 
 export default function ChessBoardScreen() {
-  const router = useRouter();
   const params = useLocalSearchParams();
+  const animatedPieces = useRef<Record<string, AnimatedPiece>>({}).current;
   const player1Name = (params.player1 as string) || 'Player 1';
   const player2Name = (params.player2 as string) || 'Player 2';
   const boardSize = 8;
 
-  const initialBoard = [
-    ["br","bn","bb","bq","bk","bb","bn","br"],
-    ["bp","bp","bp","bp","bp","bp","bp","bp"],
-    ["","","","","","","",""],
-    ["","","","","","","",""],
-    ["","","","","","","",""],
-    ["","","","","","","",""],
-    ["wp","wp","wp","wp","wp","wp","wp","wp"],
-    ["wr","wn","wb","wq","wk","wb","wn","wr"],
-  ];
-
-  const [board, setBoard] = useState<string[][]>(initialBoard);
+  const [board, setBoard] = useState<string[][]>(INITIAL_BOARD.map(row => [...row]));
   const [selectedSquare, setSelectedSquare] = useState<{row: number, col: number} | null>(null);
   const [possibleMoves, setPossibleMoves] = useState<Array<{row: number, col: number}>>([]);
   const [currentPlayer, setCurrentPlayer] = useState<'w' | 'b'>('w');
 
-  // Helper function to get piece color
-  const getPieceColor = (piece: string): 'w' | 'b' | null => {
-    if (!piece) return null;
-    return piece[0] === 'w' ? 'w' : 'b';
+  const [pieces, setPieces] = useState<Pieces>(
+    buildPiecesFromBoard(INITIAL_BOARD.map(row => [...row]))
+  );
+
+  const movePiece = (key: string, row: number, col: number) => {
+    const anim = getAnimatedValue(
+      animatedPieces, 
+      key, 
+      row, 
+      col, 
+      SQUARE_SIZE
+    );
+
+    Animated.parallel([
+      Animated.timing(anim.x, {
+        toValue: col * SQUARE_SIZE,
+        duration: 200,
+        useNativeDriver: true,
+      }),
+      Animated.timing(anim.y, {
+        toValue: row * SQUARE_SIZE,
+        duration: 200,
+        useNativeDriver: true,
+      }),
+    ]).start();
+
   };
-
-  // Calculate possible moves for a piece
-  const getPossibleMoves = (row: number, col: number, piece: string): Array<{row: number, col: number}> => {
-    if (!piece) return [];
-    const moves: Array<{row: number, col: number}> = [];
-    const pieceType = piece[1];
-    const pieceColor = piece[0];
-
-    switch (pieceType) {
-      case 'p': // Pawn
-        if (pieceColor === 'w') {
-          // White pawn moves forward
-          if (row > 0 && !board[row - 1][col]) {
-            moves.push({ row: row - 1, col });
-            // First move can go 2 squares
-            if (row === 6 && !board[row - 2][col]) {
-              moves.push({ row: row - 2, col });
-            }
-          }
-          // Capture diagonally
-          if (row > 0 && col > 0 && board[row - 1][col - 1] && getPieceColor(board[row - 1][col - 1]) === 'b') {
-            moves.push({ row: row - 1, col: col - 1 });
-          }
-          if (row > 0 && col < 7 && board[row - 1][col + 1] && getPieceColor(board[row - 1][col + 1]) === 'b') {
-            moves.push({ row: row - 1, col: col + 1 });
-          }
-        } else {
-          // Black pawn moves forward
-          if (row < 7 && !board[row + 1][col]) {
-            moves.push({ row: row + 1, col });
-            // First move can go 2 squares
-            if (row === 1 && !board[row + 2][col]) {
-              moves.push({ row: row + 2, col });
-            }
-          }
-          // Capture diagonally
-          if (row < 7 && col > 0 && board[row + 1][col - 1] && getPieceColor(board[row + 1][col - 1]) === 'w') {
-            moves.push({ row: row + 1, col: col - 1 });
-          }
-          if (row < 7 && col < 7 && board[row + 1][col + 1] && getPieceColor(board[row + 1][col + 1]) === 'w') {
-            moves.push({ row: row + 1, col: col + 1 });
-          }
-        }
-        break;
-
-      case 'r': // Rook
-        // Horizontal and vertical moves
-        const rookDirections = [[0, 1], [0, -1], [1, 0], [-1, 0]];
-        for (const [dr, dc] of rookDirections) {
-          for (let i = 1; i < 8; i++) {
-            const newRow = row + dr * i;
-            const newCol = col + dc * i;
-            if (newRow < 0 || newRow >= 8 || newCol < 0 || newCol >= 8) break;
-            const targetPiece = board[newRow][newCol];
-            if (!targetPiece) {
-              moves.push({ row: newRow, col: newCol });
-            } else {
-              if (getPieceColor(targetPiece) !== pieceColor) {
-                moves.push({ row: newRow, col: newCol });
-              }
-              break;
-            }
-          }
-        }
-        break;
-
-      case 'n': // Knight
-        const knightMoves = [[-2, -1], [-2, 1], [-1, -2], [-1, 2], [1, -2], [1, 2], [2, -1], [2, 1]];
-        for (const [dr, dc] of knightMoves) {
-          const newRow = row + dr;
-          const newCol = col + dc;
-          if (newRow >= 0 && newRow < 8 && newCol >= 0 && newCol < 8) {
-            const targetPiece = board[newRow][newCol];
-            if (!targetPiece || getPieceColor(targetPiece) !== pieceColor) {
-              moves.push({ row: newRow, col: newCol });
-            }
-          }
-        }
-        break;
-
-      case 'b': // Bishop
-        const bishopDirections = [[1, 1], [1, -1], [-1, 1], [-1, -1]];
-        for (const [dr, dc] of bishopDirections) {
-          for (let i = 1; i < 8; i++) {
-            const newRow = row + dr * i;
-            const newCol = col + dc * i;
-            if (newRow < 0 || newRow >= 8 || newCol < 0 || newCol >= 8) break;
-            const targetPiece = board[newRow][newCol];
-            if (!targetPiece) {
-              moves.push({ row: newRow, col: newCol });
-            } else {
-              if (getPieceColor(targetPiece) !== pieceColor) {
-                moves.push({ row: newRow, col: newCol });
-              }
-              break;
-            }
-          }
-        }
-        break;
-
-      case 'q': // Queen (combines rook and bishop)
-        const queenDirections = [[0, 1], [0, -1], [1, 0], [-1, 0], [1, 1], [1, -1], [-1, 1], [-1, -1]];
-        for (const [dr, dc] of queenDirections) {
-          for (let i = 1; i < 8; i++) {
-            const newRow = row + dr * i;
-            const newCol = col + dc * i;
-            if (newRow < 0 || newRow >= 8 || newCol < 0 || newCol >= 8) break;
-            const targetPiece = board[newRow][newCol];
-            if (!targetPiece) {
-              moves.push({ row: newRow, col: newCol });
-            } else {
-              if (getPieceColor(targetPiece) !== pieceColor) {
-                moves.push({ row: newRow, col: newCol });
-              }
-              break;
-            }
-          }
-        }
-        break;
-
-      case 'k': // King
-        const kingMoves = [[-1, -1], [-1, 0], [-1, 1], [0, -1], [0, 1], [1, -1], [1, 0], [1, 1]];
-        for (const [dr, dc] of kingMoves) {
-          const newRow = row + dr;
-          const newCol = col + dc;
-          if (newRow >= 0 && newRow < 8 && newCol >= 0 && newCol < 8) {
-            const targetPiece = board[newRow][newCol];
-            if (!targetPiece || getPieceColor(targetPiece) !== pieceColor) {
-              moves.push({ row: newRow, col: newCol });
-            }
-          }
-        }
-        break;
-    }
-
-    return moves;
-  };
-
+  
   // Check if a king at given position is in check
   const isKingInCheck = (kingRow: number, kingCol: number, kingColor: 'w' | 'b'): boolean => {
     const opponentColor = kingColor === 'w' ? 'b' : 'w';
@@ -184,7 +83,7 @@ export default function ChessBoardScreen() {
         const pieceColor = getPieceColor(piece);
         
         if (pieceColor === opponentColor) {
-          const moves = getPossibleMoves(row, col, piece);
+          const moves = getPossibleMoves(row, col, piece, board);
           // Check if any move can capture the king
           if (moves.some(move => move.row === kingRow && move.col === kingCol)) {
             return true;
@@ -209,47 +108,100 @@ export default function ChessBoardScreen() {
     return null;
   };
 
-  // Check if current player's king is in check
   const kingPosition = findKingPosition(currentPlayer);
   const isInCheck = kingPosition ? isKingInCheck(kingPosition.row, kingPosition.col, currentPlayer) : false;
 
-  // Handle square click
   const handleSquarePress = (row: number, col: number) => {
     const piece = board[row][col];
     const pieceColor = getPieceColor(piece);
 
-    // If a square is already selected
     if (selectedSquare) {
-      // Check if clicking on a possible move
-      const isPossibleMove = possibleMoves.some(move => move.row === row && move.col === col);
-      
+      const isPossibleMove = possibleMoves.some(
+        move => move.row === row && move.col === col
+      );
+
       if (isPossibleMove) {
-        // Move the piece
         const newBoard = board.map(r => [...r]);
-        const selectedPiece = newBoard[selectedSquare.row][selectedSquare.col];
+        const selectedPiece =
+          newBoard[selectedSquare.row][selectedSquare.col];
+
+        const pieceEntry = Object.entries(pieces).find(
+          ([, p]) =>
+            p.row === selectedSquare.row &&
+            p.col === selectedSquare.col
+        );
+
+        if (!pieceEntry) return;
+
+        const [pieceKey] = pieceEntry;
+
+        const updatedPieces = { ...pieces };
+        const capturedEntry = Object.entries(updatedPieces).find(
+          ([k, p]) => p.row === row && p.col === col && k !== pieceKey
+        );
+
+        if (capturedEntry) {
+          delete updatedPieces[capturedEntry[0]];
+        }
+
+        updatedPieces[pieceKey] = {
+          ...updatedPieces[pieceKey],
+          row,
+          col,
+        };
+
+        movePiece(pieceKey, row, col);
+        setPieces(updatedPieces);
+
         newBoard[row][col] = selectedPiece;
         newBoard[selectedSquare.row][selectedSquare.col] = '';
-        
         setBoard(newBoard);
+
         setSelectedSquare(null);
         setPossibleMoves([]);
         setCurrentPlayer(currentPlayer === 'w' ? 'b' : 'w');
-      } else if (pieceColor === currentPlayer) {
-        // Select a new piece of current player
-        setSelectedSquare({ row, col });
-        setPossibleMoves(getPossibleMoves(row, col, piece));
-      } else {
-        // Deselect if clicking on opponent's piece or empty square
-        setSelectedSquare(null);
-        setPossibleMoves([]);
+        return;
       }
-    } else {
-      // Select a piece if it belongs to current player
+
       if (pieceColor === currentPlayer) {
         setSelectedSquare({ row, col });
-        setPossibleMoves(getPossibleMoves(row, col, piece));
+        setPossibleMoves(getPossibleMoves(row, col, piece, board));
+        return;
       }
+
+      setSelectedSquare(null);
+      setPossibleMoves([]);
+      return;
     }
+
+    if (pieceColor === currentPlayer) {
+      setSelectedSquare({ row, col });
+      setPossibleMoves(getPossibleMoves(row, col, piece, board));
+    }
+  };
+
+  const getSquareHighlightStyle = (row: number, col: number) => {
+    if (
+      selectedSquare &&
+      selectedSquare.row === row &&
+      selectedSquare.col === col
+    ) {
+      return styles.selectedSquare;
+    }
+
+    const isPossibleMove = possibleMoves.some(
+      move => move.row === row && move.col === col
+    );
+
+    if (!isPossibleMove) return null;
+
+    const pieceOnSquare = board[row][col];
+
+    if (pieceOnSquare && getPieceColor(pieceOnSquare) === 'b') {
+      return styles.checkSquare; 
+    }
+
+    return styles.possibleMoveSquare;
   };
 
   // Create chess board squares
@@ -267,72 +219,77 @@ export default function ChessBoardScreen() {
   }
 
   return (
-    <View style={styles.container}>
-      <View style={styles.header}>
-        <TouchableOpacity
-          style={styles.backButton}
-          onPress={() => router.back()}
-        >
-          <Ionicons name="arrow-back" size={24} color="black" />
-        </TouchableOpacity>
-        <Text style={styles.title}>Chess Board</Text>
-      </View>
+    <SafeAreaProvider>
+      <SafeAreaView style={styles.container}>
+        <TopHeader headerText="Offline Chess" />
 
-      <View style={styles.boardContainer}>
-        {/* Player 2 Name (Black) - Top Left */}
-        <View style={styles.playerNameTopLeft}>
-          <Text style={styles.playerNameText}>{player2Name}</Text>
-          {currentPlayer === 'b' && isInCheck && (
-            <Text style={styles.checkText}> - CHECK!</Text>
-          )}
-        </View>
-        
-        <View style={styles.board}>
-        {squares.map((square) => {
-            const piece = board[square.row][square.col];
-            const isSelected = selectedSquare?.row === square.row && selectedSquare?.col === square.col;
-            const isPossibleMove = possibleMoves.some(move => move.row === square.row && move.col === square.col);
-            const isKingInCheckSquare = kingPosition && 
-              kingPosition.row === square.row && 
-              kingPosition.col === square.col && 
-              isInCheck;
-            
-            return (
-                <TouchableOpacity
+        <View style={styles.boardContainer}>
+          {/* Player 2 Name (Black) - Top Left */}
+          <View style={styles.playerNameTopLeft}>
+            <Text style={styles.playerNameText}>{player2Name}</Text>
+            {currentPlayer === 'b' && isInCheck && (
+              <Text style={styles.checkText}> - CHECK!</Text>
+            )}
+          </View>
+          
+          <View style={styles.board}>
+            {squares.map(square => (
+              <TouchableOpacity
                 key={square.key}
                 style={[
-                    styles.square,
-                    square.isLight ? styles.lightSquare : styles.darkSquare,
-                    isSelected && styles.selectedSquare,
-                    isPossibleMove && styles.possibleMoveSquare,
-                    isKingInCheckSquare && styles.checkSquare,
+                  styles.square,
+                  square.isLight ? styles.lightSquare : styles.darkSquare,
+                  getSquareHighlightStyle(square.row, square.col),
+                  {
+                    position: 'absolute',
+                    top: square.row * SQUARE_SIZE,
+                    left: square.col * SQUARE_SIZE,
+                  },
                 ]}
                 onPress={() => handleSquarePress(square.row, square.col)}
+                // disabled={currentPlayer !== 'w'}
+              />
+            ))}
+
+            {/* Animated Pieces */}
+            {Object.entries(pieces).map(([key, piece]) => {
+              const anim = getAnimatedValue(
+                                animatedPieces,
+                                key, 
+                                piece.row, 
+                                piece.col,
+                                SQUARE_SIZE
+                              );
+
+              return (
+                <Animated.View
+                  key={key}
+                  pointerEvents="none"
+                  style={[
+                    styles.animatedPiece,
+                    { 
+                      transform: [ 
+                        { translateX: anim.x }, { translateY: anim.y },
+                      ], 
+                    },
+                  ]}
                 >
-                {piece ? (
-                    <Image
-                    source={pieceImages[piece]}
-                    style={styles.piece}
-                    resizeMode="contain"
-                    />
-                ) : null}
-                {isPossibleMove && !piece && (
-                  <View style={styles.moveIndicator} />
-                )}
-                </TouchableOpacity>
-            );
+                  <Image source={pieceImages[piece.type]} style={styles.piece} resizeMode="contain" />
+                </Animated.View>
+              );
             })}
+          </View>
+          
+          {/* Player 1 Name (White) - Bottom Right */}
+          <View style={styles.playerNameBottomRight}>
+            <Text style={styles.playerNameTextWhite}>{player1Name}</Text>
+            {currentPlayer === 'w' && isInCheck && (
+              <Text style={styles.checkText}> - CHECK!</Text>
+            )}
+          </View>
         </View>
-        
-        {/* Player 1 Name (White) - Bottom Right */}
-        <View style={styles.playerNameBottomRight}>
-          <Text style={styles.playerNameTextWhite}>{player1Name}</Text>
-          {currentPlayer === 'w' && isInCheck && (
-            <Text style={styles.checkText}> - CHECK!</Text>
-          )}
-        </View>
-      </View>
-    </View>
+      </SafeAreaView>
+    </SafeAreaProvider>
   );
 }
 
@@ -340,42 +297,23 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#fff',
-  },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    padding: 16,
-    paddingTop: 60,
-  },
-  backButton: {
-    marginRight: 16,
-  },
-  title: {
-    fontSize: 20,
-    fontWeight: 'bold',
-    color: '#000',
+    flexDirection: 'column',
   },
   boardContainer: {
-    flex: 1,
     alignItems: 'center',
-    justifyContent: 'center',
     padding: 10,
-    position: 'relative',
+    marginTop: 'auto',
   },
   playerNameTopLeft: {
-    position: 'absolute',
-    top: 10,
-    left: 10,
     backgroundColor: 'rgba(0, 0, 0, 0.7)',
     paddingHorizontal: 12,
     paddingVertical: 6,
     borderRadius: 8,
     zIndex: 10,
+    marginBottom: 10,
+    alignSelf: 'flex-start',
   },
   playerNameBottomRight: {
-    position: 'absolute',
-    bottom: 10,
-    right: 10,
     backgroundColor: 'rgba(255, 255, 255, 0.9)',
     paddingHorizontal: 12,
     paddingVertical: 6,
@@ -383,6 +321,8 @@ const styles = StyleSheet.create({
     zIndex: 10,
     borderWidth: 1,
     borderColor: '#000',
+    marginTop: 10,
+    alignSelf: 'flex-end',
   },
   playerNameText: {
     fontSize: 14,
@@ -395,19 +335,26 @@ const styles = StyleSheet.create({
     color: '#000',
   },
   board: {
-    width: '100%',
-    aspectRatio: 1,
+    width: BOARD_SIZE,
+    height: BOARD_SIZE,
+    position: 'relative', 
     flexDirection: 'row',
     flexWrap: 'wrap',
     borderWidth: 2,
     borderColor: '#000',
   },
   square: {
-    width: '12.5%',
-    aspectRatio: 1,
+    width: SQUARE_SIZE,
+    height: SQUARE_SIZE,  
     justifyContent: 'center',
     alignItems: 'center',
-    minHeight: 50,
+  },
+  animatedPiece: {
+    position: 'absolute',
+    width: SQUARE_SIZE,
+    height: SQUARE_SIZE,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   lightSquare: {
     backgroundColor: '#ffffff',
@@ -422,6 +369,8 @@ const styles = StyleSheet.create({
   },
   possibleMoveSquare: {
     backgroundColor: '#90EE90',
+    borderWidth: 3,
+    borderColor: '#05d844',
   },
   checkSquare: {
     backgroundColor: '#FF6B6B',
