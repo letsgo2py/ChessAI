@@ -24,11 +24,6 @@ export default function RootLayout() {
       setLoading(false);
     });
 
-    // Check for guest mode
-    AsyncStorage.getItem('isGuest').then((guestValue) => {
-      setIsGuest(guestValue === 'true');
-    });
-
     return unsubscribe;
   }, []);
 
@@ -36,6 +31,11 @@ export default function RootLayout() {
     if (loading) return;
 
     const inAuthGroup = segments[0] === 'login' || segments[0] === 'login-form';
+
+    // Check for guest mode
+    AsyncStorage.getItem('isGuest').then((guestValue) => {
+      setIsGuest(guestValue === 'true');
+    });
 
     // Allow access if user is authenticated OR in guest mode
     if (!user && !isGuest && !inAuthGroup) {

@@ -1,9 +1,10 @@
 import { StyleSheet, View, Text, TouchableOpacity, Image, Animated, Dimensions } from 'react-native';
 import { useLocalSearchParams } from 'expo-router';
-import { useState, useRef} from 'react';
+import { useState, useEffect, useRef} from 'react';
 import {SafeAreaView, SafeAreaProvider} from 'react-native-safe-area-context';
 import { pieceImages } from '../constants/pieces';
 import Ionicons from '@expo/vector-icons/Ionicons';
+import AntDesign from '@expo/vector-icons/AntDesign';
 import * as Haptics from 'expo-haptics';
 
 
@@ -62,9 +63,38 @@ export default function ChessBoardAIScreen() {
   const [undoStack, setUndoStack] = useState<GameState[]>([]);
   const [redoStack, setRedoStack] = useState<GameState[]>([]);
 
+  const [whiteTime, setWhiteTime] = useState(5 * 60); // 5 min
+  const [blackTime, setBlackTime] = useState(5 * 60);
+
   const [pieces, setPieces] = useState<Pieces>(
     buildPiecesFromBoard(INITIAL_BOARD.map(row => [...row]))
   );
+
+  useEffect(() => {
+    let interval: ReturnType<typeof setInterval> | null = null;
+
+    if (currentPlayer === 'w') {
+      interval = setInterval(() => {
+        setWhiteTime(t => Math.max(t - 1, 0));
+      }, 1000);
+    }
+
+    if (currentPlayer === 'b') {
+      interval = setInterval(() => {
+        setBlackTime(t => Math.max(t - 1, 0));
+      }, 1000);
+    }
+
+    return () => {
+      if (interval) clearInterval(interval);
+    };  
+  }, [currentPlayer, isAIThinking])
+
+  const formatTime = (seconds: number) => {
+    const m = Math.floor(seconds / 60);
+    const s = seconds % 60;
+    return `${m}:${s.toString().padStart(2, '0')}`;
+  };
 
   // Move the piece on board with smooth animation 
   const movePiece = (key: string, row: number, col: number) => {
@@ -584,15 +614,22 @@ export default function ChessBoardAIScreen() {
         <TopHeader headerText={`Chess vs AI (${difficulty})`} />
         
         <View style={styles.boardContainer}>
-          {/* AI Name (Black)*/}
-          <View style={styles.playerNameTopLeft}>
-            <Text style={styles.playerNameText}>AI ({difficulty})</Text>
-            {currentPlayer === 'b' && isInCheck && (
-              <Text style={styles.checkText}> - CHECK!</Text>
-            )}
-            {isAIThinking && (
-              <Text style={styles.thinkingText}>Thinking...</Text>
-            )}
+          <View style={styles.blackPlayerInfoDiv}>
+
+            {/* AI Name (Black)*/}
+            <View style={styles.playerNameTopLeft}>
+              <Text style={styles.playerNameText}>AI ({difficulty})</Text>
+              {isAIThinking && (
+                <Text style={styles.thinkingText}>Thinking...</Text>
+              )}
+            </View>
+
+            {/* Black Player Timer*/}
+            <View style={styles.timerDiv}>
+              <AntDesign name="clock-circle" size={14} color="white" />
+              <Text style={styles.timerText}>{formatTime(blackTime)}</Text>
+            </View>
+
           </View>
 
           <View style={styles.board}>
@@ -635,12 +672,17 @@ export default function ChessBoardAIScreen() {
             </View>
 
             {/* Player Name (White) */}
-            <View style={styles.playerNameBottomRight}>
-              <Text style={styles.playerNameTextWhite}>{playerName}</Text>
-              {currentPlayer === 'w' && isInCheck && (
-                <Text style={styles.checkText}> - CHECK!</Text>
-              )}
+            <View style={styles.whitePlayerInfoDiv}>
+              <View style={styles.playerNameBottomRight}>
+                <Text style={styles.playerNameTextWhite}>{playerName}</Text>
+              </View>
+              {/* White Player Timer */}
+              <View style={styles.timerDiv}>
+                <AntDesign name="clock-circle" size={14} color="white" />
+                <Text style={styles.timerText}>{formatTime(whiteTime)}</Text>
+              </View>
             </View>
+
           </View>
 
         </View>
@@ -654,11 +696,26 @@ export const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#fff',
     flexDirection: 'column',
+    marginBottom: 100,
   },
   boardContainer: {
     alignItems: 'center',
     padding: 10,
     marginTop: 'auto',
+  },
+  blackPlayerInfoDiv: {
+    flexDirection: 'row',
+    alignSelf: 'flex-start',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 16,
+    marginBottom: 10,
+  },
+  whitePlayerInfoDiv: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 16,
   },
   playerNameTopLeft: {
     backgroundColor: 'rgba(0, 0, 0, 0.7)',
@@ -666,8 +723,6 @@ export const styles = StyleSheet.create({
     paddingVertical: 6,
     borderRadius: 8,
     zIndex: 10,
-    marginBottom: 10,
-    alignSelf: 'flex-start',
   },
   playerNameBottomRight: {
     backgroundColor: 'rgba(255, 255, 255, 0.9)',
@@ -677,8 +732,6 @@ export const styles = StyleSheet.create({
     zIndex: 10,
     borderWidth: 1,
     borderColor: '#000',
-    // marginTop: 10,
-    // alignSelf: 'flex-end',
   },
   playerNameText: {
     fontSize: 14,
@@ -695,6 +748,20 @@ export const styles = StyleSheet.create({
     color: '#FFD700',
     fontStyle: 'italic',
   },
+  timerDiv: {
+    padding: 8,
+    backgroundColor: 'black',
+    borderRadius: 8,
+    flexDirection: 'row',
+    gap: 4,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  timerText: {
+    color: 'white',
+    fontSize: 14,
+    fontWeight: '600',
+  },
   board: {
     width: BOARD_SIZE,
     height: BOARD_SIZE,
@@ -704,14 +771,6 @@ export const styles = StyleSheet.create({
     borderWidth: 2,
     borderColor: '#000',
   },
-  checkText: {
-    color: '#FF0000',
-    fontWeight: 'bold',
-  },
-  // piece: {
-  //   width: '90%',
-  //   height: '90%',
-  // },
   moveIndicator: {
     width: 20,
     height: 20,
@@ -719,13 +778,6 @@ export const styles = StyleSheet.create({
     backgroundColor: '#000',
     opacity: 0.3,
   },
-  // animatedPiece: {
-  //   position: 'absolute',
-  //   width: SQUARE_SIZE,
-  //   height: SQUARE_SIZE,
-  //   justifyContent: 'center',
-  //   alignItems: 'center',
-  // },
   bottomDivContainer:{
     marginTop: 10,
     flexDirection: 'row',
@@ -737,7 +789,7 @@ export const styles = StyleSheet.create({
   moveBtns: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 100,
+    gap: 80,
     marginLeft: 30,
   },
   moveBtn:{
@@ -750,5 +802,10 @@ export const styles = StyleSheet.create({
   },
   disabledBtn: {
     opacity: 0.3,
-  }
+  },
+  nameRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  }, 
 });

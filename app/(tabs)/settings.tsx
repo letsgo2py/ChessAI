@@ -3,9 +3,21 @@ import { useState } from 'react';
 import { useRouter } from 'expo-router';
 import { signOut } from 'firebase/auth';
 import { auth } from '@/config/firebase';
-import { IconSymbol } from '@/components/ui/icon-symbol';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
+import { IconSymbol } from '@/components/ui/icon-symbol';
 import Ionicons from '@expo/vector-icons/Ionicons';
+
+type settingItemType = {
+  icon: string;
+  title: string;
+  subtitle?: string;
+  hasSwitch?: boolean;
+  switchValue?: boolean;
+  onSwitchChange?: (value: boolean) => void;
+  onPress?: () => void;
+  danger?: boolean;
+};
 
 export default function SettingsScreen() {
   const [soundEnabled, setSoundEnabled] = useState(true);
@@ -15,7 +27,6 @@ export default function SettingsScreen() {
   const router = useRouter();
 
   const currentYr = new Date().getFullYear();
-
   const user = auth.currentUser;
 
   const handleLogout = () => {
@@ -30,6 +41,7 @@ export default function SettingsScreen() {
           onPress: async () => {
             try {
               await signOut(auth);
+              await AsyncStorage.removeItem('isGuest');
               router.replace('/login');
               console.log("Logout success")
             } catch (error: any) {
@@ -50,16 +62,7 @@ export default function SettingsScreen() {
     onSwitchChange,
     onPress,
     danger
-  }: {
-    icon: string;
-    title: string;
-    subtitle?: string;
-    hasSwitch?: boolean;
-    switchValue?: boolean;
-    onSwitchChange?: (value: boolean) => void;
-    onPress?: () => void;
-    danger?: boolean;
-  }) => (
+  }: settingItemType) => (
     <TouchableOpacity 
       style={styles.settingItem} 
       onPress={onPress}

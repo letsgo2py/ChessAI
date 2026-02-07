@@ -53,6 +53,11 @@ export default function LoginScreen() {
     );
   }
 
+  async function playAsGuestHandler(){
+    await AsyncStorage.setItem('isGuest', 'true');
+    router.replace('/(tabs)');
+  }
+
   return (
     <View style={styles.container}>
       {/* Rotating snowflakes with different speeds */}
@@ -74,10 +79,7 @@ export default function LoginScreen() {
       <TouchableOpacity style={styles.loginButton} onPress={() => router.push('/login-form')}>
         <Text style={styles.loginButtonText}>Login</Text>
       </TouchableOpacity>
-      <TouchableOpacity onPress={async () => {
-        await AsyncStorage.setItem('isGuest', 'true');
-        router.replace('/(tabs)');
-      }}>
+      <TouchableOpacity onPress={playAsGuestHandler}>
         <Text style={styles.guestText}>Play as a guest</Text>
       </TouchableOpacity>
     </View>

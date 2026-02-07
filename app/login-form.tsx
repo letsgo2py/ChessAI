@@ -3,10 +3,8 @@ import { useState } from 'react';
 import { signInWithEmailAndPassword, createUserWithEmailAndPassword, updateProfile } from 'firebase/auth';
 import { auth } from '@/config/firebase';
 import { useFonts, InriaSans_400Regular, InriaSans_700Bold } from '@expo-google-fonts/inria-sans';
-import { useRouter } from 'expo-router';
 
 export default function LoginFormScreen() {
-  const router = useRouter();
   const [isSignUp, setIsSignUp] = useState(false);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -158,6 +156,8 @@ export default function LoginFormScreen() {
             </View>
           )}
 
+          <Text style={styles.passwordInfo}>*Password must be at least 6 characters long.</Text>
+
           <TouchableOpacity 
             style={[styles.loginButton, loading && styles.loginButtonDisabled]} 
             onPress={handleSubmit}
@@ -273,4 +273,7 @@ const styles = StyleSheet.create({
     marginTop: 20,
     textDecorationLine: 'underline',
   },
+  passwordInfo: {
+    color: 'black',
+  }
 });
