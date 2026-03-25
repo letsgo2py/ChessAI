@@ -6,9 +6,11 @@ import { IconSymbol } from '@/components/ui/icon-symbol';
 import { Colors } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import Feather from '@expo/vector-icons/Feather';
+import { useTheme } from '@/contexts/ThemeContext';
 
 export default function TabLayout() {
   const colorScheme = useColorScheme();
+  const { theme } = useTheme();
 
   return (
     <Tabs
@@ -16,6 +18,11 @@ export default function TabLayout() {
         tabBarActiveTintColor: Colors[colorScheme ?? 'light'].tint,
         headerShown: false,
         tabBarButton: HapticTab,
+        tabBarStyle: {
+          backgroundColor: theme.cardBg,   
+          borderTopColor: theme.border,    
+        },
+        tabBarInactiveTintColor: theme.secondaryText,
       }}>
       <Tabs.Screen
         name="index"
@@ -29,7 +36,6 @@ export default function TabLayout() {
         options={{
           title: 'Profile',
           tabBarIcon: ({ color }) => <Feather name="user" size={24} color={color} />,
-          // tabBarIcon: ({ color }) => <IconSymbol size={28} name="gearshape.fill" color={color} />,
         }}
       />
     </Tabs>

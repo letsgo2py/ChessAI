@@ -6,7 +6,7 @@ import { pieceImages } from '../constants/pieces';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import AntDesign from '@expo/vector-icons/AntDesign';
 import * as Haptics from 'expo-haptics';
-
+import { useTheme } from '@/contexts/ThemeContext';
 
 import TopHeader from './top-header'
 import BoardSquares from './board-squares'
@@ -49,6 +49,7 @@ type GameState = {
 };
 
 export default function ChessBoardAIScreen() {
+  const { theme } = useTheme();
   const params = useLocalSearchParams();
   const animatedPieces = useRef<Record<string, AnimatedPiece>>({}).current;
   const playerName = (params.playerName as string) || 'Player';
@@ -610,7 +611,7 @@ export default function ChessBoardAIScreen() {
 
   return (
     <SafeAreaProvider>
-      <SafeAreaView style={styles.container}>
+      <SafeAreaView style={[styles.container, { backgroundColor: theme.bg }]}>
         <TopHeader headerText={`Chess vs AI (${difficulty})`} />
         
         <View style={styles.boardContainer}>
@@ -694,14 +695,13 @@ export default function ChessBoardAIScreen() {
 export const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#fff',
     flexDirection: 'column',
-    marginBottom: 100,
   },
   boardContainer: {
     alignItems: 'center',
     padding: 10,
     marginTop: 'auto',
+    marginBottom: 60,
   },
   blackPlayerInfoDiv: {
     flexDirection: 'row',

@@ -2,7 +2,13 @@ import { View, TouchableOpacity, Text, StyleSheet, ActivityIndicator, Animated, 
 import { useFonts, InriaSans_400Regular, InriaSans_700Bold } from '@expo-google-fonts/inria-sans';
 import { useRouter } from 'expo-router';
 import { useEffect, useRef } from 'react';
+import * as WebBrowser from "expo-web-browser";
+import * as Google from "expo-auth-session/providers/google";
+import { GoogleAuthProvider, signInWithCredential } from "firebase/auth";;
+import { auth } from '@/config/firebase';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+
+import * as AuthSession from 'expo-auth-session';
 
 const snowflakeImage = require('../assets/snowflake.png');
 
@@ -37,8 +43,40 @@ const RotatingSnowflake = ({ style, duration = 10000 }: { style: any; duration?:
   );
 };
 
+WebBrowser.maybeCompleteAuthSession();
+
 export default function LoginScreen() {
+
+  const redirectUri = AuthSession.makeRedirectUri();
+  const [request, response, promptAsync] = Google.useAuthRequest({
+    clientId: process.env.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID,
+    androidClientId: process.env.EXPO_PUBLIC_GOOGLE_ANDROID_CLIENT_ID,
+    redirectUri,
+  });
+
   const router = useRouter();
+
+  useEffect(() => {
+    if (response?.type === "success") {
+      const id_token = response?.authentication?.idToken;
+
+      if (!id_token) {
+        console.log("No ID token received");
+        return;
+      }
+
+      const credential = GoogleAuthProvider.credential(id_token);
+      signInWithCredential(auth, credential)
+        .then(async (userCred) => {
+          await AsyncStorage.setItem("user", JSON.stringify(userCred.user));
+          router.replace('/(tabs)');
+        })
+        .catch((err) => console.log("Firebase error:", err));
+    }
+    if (response?.type === "error") {
+      console.log("Google Auth Error:", response.error);
+    }
+  }, [response]);
 
   const [fontsLoaded] = useFonts({
     InriaSans_400Regular,
@@ -78,6 +116,13 @@ export default function LoginScreen() {
       </View>
       <TouchableOpacity style={styles.loginButton} onPress={() => router.push('/login-form')}>
         <Text style={styles.loginButtonText}>Login</Text>
+      </TouchableOpacity>
+      <TouchableOpacity 
+        style={[styles.googleButton, !request && { opacity: 0.5 }]}
+        onPress={() => promptAsync()} 
+        disabled={!request}
+      >
+        <Text style={styles.loginButtonText}>Signup with Google</Text>
       </TouchableOpacity>
       <TouchableOpacity onPress={playAsGuestHandler}>
         <Text style={styles.guestText}>Play as a guest</Text>
@@ -166,6 +211,14 @@ const styles = StyleSheet.create({
     color: '#fff',
     fontSize: 18,
     fontWeight: 'bold',
+  },
+  googleButton: {
+    marginTop: 20,
+    backgroundColor: '#6a87e5',
+    padding: 15,
+    borderRadius: 10,
+    width: '100%',
+    alignItems: 'center',
   },
   guestText: {
     color: '#332F2F',

@@ -2,10 +2,11 @@
 
 import { StyleSheet, View, Text, TouchableOpacity, Image, Animated, Dimensions } from 'react-native';
 import { useLocalSearchParams } from 'expo-router';
-import { useState, useRef } from 'react';
-import {SafeAreaView, SafeAreaProvider} from 'react-native-safe-area-context';
+import { useState, useEffect, useRef } from 'react';
+import { SafeAreaView, SafeAreaProvider } from 'react-native-safe-area-context';
 import { pieceImages } from '../constants/pieces';
-
+import AntDesign from '@expo/vector-icons/AntDesign';
+import { useTheme } from '@/contexts/ThemeContext';
 
 import TopHeader from './top-header';
 import { getPieceColor } from '@/utils/chess-utils';
@@ -14,6 +15,7 @@ import { getPossibleMoves } from '@/utils/chessMoves';
 import { buildPiecesFromBoard } from '@/utils/chessPieces';
 
 import { INITIAL_BOARD } from '@/constants/chessBoard';
+import { green } from 'react-native-reanimated/lib/typescript/Colors';
 
 const screenWidth = Dimensions.get('window').width;
 const BOARD_SIZE = screenWidth * 0.97; // 97% of screen width
@@ -33,10 +35,17 @@ type Piece = {
 type Pieces = Record<string, Piece>;
 
 export default function ChessBoardScreen() {
+  const { theme } = useTheme();
   const params = useLocalSearchParams();
   const animatedPieces = useRef<Record<string, AnimatedPiece>>({}).current;
   const player1Name = (params.player1 as string) || 'Player 1';
   const player2Name = (params.player2 as string) || 'Player 2';
+  const initialTime = Array.isArray(params.timer)
+                        ? Number(params.timer[0])
+                        : Number(params.timer) || 0;
+  const [whiteTime, setWhiteTime] = useState(initialTime);
+  const [blackTime, setBlackTime] = useState(initialTime);
+
   const boardSize = 8;
 
   const [board, setBoard] = useState<string[][]>(INITIAL_BOARD.map(row => [...row]));
@@ -47,6 +56,20 @@ export default function ChessBoardScreen() {
   const [pieces, setPieces] = useState<Pieces>(
     buildPiecesFromBoard(INITIAL_BOARD.map(row => [...row]))
   );
+
+  useEffect(() => {
+    if (initialTime === 0) return; // No timer mode
+
+    const interval = setInterval(() => {
+      if (currentPlayer === 'w') {
+        setWhiteTime((prev) => (prev > 0 ? prev - 1 : 0));
+      } else {
+        setBlackTime((prev) => (prev > 0 ? prev - 1 : 0));
+      }
+    }, 1000);
+
+    return () => clearInterval(interval);
+  }, [currentPlayer]);
 
   const movePiece = (key: string, row: number, col: number) => {
     const anim = getAnimatedValue(
@@ -218,17 +241,33 @@ export default function ChessBoardScreen() {
     }
   }
 
+  const formatTime = (seconds: number) => {
+    const m = Math.floor(seconds / 60);
+    const s = seconds % 60;
+    return `${m}:${s.toString().padStart(2, '0')}`;
+  };
+
   return (
     <SafeAreaProvider>
-      <SafeAreaView style={styles.container}>
+      <SafeAreaView style={[styles.container, { backgroundColor: theme.bg }]}>
         <TopHeader headerText="Offline Chess" />
 
         <View style={styles.boardContainer}>
-          {/* Player 2 Name (Black) - Top Left */}
-          <View style={styles.playerNameTopLeft}>
-            <Text style={styles.playerNameText}>{player2Name}</Text>
-            {currentPlayer === 'b' && isInCheck && (
-              <Text style={styles.checkText}> - CHECK!</Text>
+          <View style={styles.blackPlayerInfoDiv}>
+            {/* Player 2 Name (Black) - Top Left */}
+            <View style={styles.playerNameTopLeft}>
+              <Text style={styles.playerNameText}>{player2Name}</Text>
+              {currentPlayer === 'b' && isInCheck && (
+                <Text style={styles.checkText}> - CHECK!</Text>
+              )}
+            </View>
+
+            {/* Black Player Timer*/}
+            {initialTime > 0 && (
+              <View style={styles.timerDiv}>
+                <AntDesign name="clock-circle" size={14} color="white" />
+                <Text style={styles.timerText}>{formatTime(blackTime)}</Text>
+              </View>
             )}
           </View>
           
@@ -280,11 +319,20 @@ export default function ChessBoardScreen() {
             })}
           </View>
           
-          {/* Player 1 Name (White) - Bottom Right */}
-          <View style={styles.playerNameBottomRight}>
-            <Text style={styles.playerNameTextWhite}>{player1Name}</Text>
-            {currentPlayer === 'w' && isInCheck && (
-              <Text style={styles.checkText}> - CHECK!</Text>
+          <View style={styles.whitePlayerInfoDiv}>
+            {/* Player 1 Name (White) - Bottom Right */}
+            <View style={styles.playerNameBottomRight}>
+              <Text style={styles.playerNameTextWhite}>{player1Name}</Text>
+              {currentPlayer === 'w' && isInCheck && (
+                <Text style={styles.checkText}> - CHECK!</Text>
+              )}
+            </View>
+            {/* White Player Timer */}
+            {initialTime > 0 && (
+              <View style={styles.timerDiv}>
+                <AntDesign name="clock-circle" size={14} color="white" />
+                <Text style={styles.timerText}>{formatTime(whiteTime)}</Text>
+              </View>
             )}
           </View>
         </View>
@@ -303,26 +351,37 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     padding: 10,
     marginTop: 'auto',
+    marginBottom: 60,
+  },
+  blackPlayerInfoDiv: {
+    flexDirection: 'row',
+    alignSelf: 'flex-start',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 16,
+    marginBottom: 10,
+  },
+  whitePlayerInfoDiv: {
+    flexDirection: 'row',
+    alignSelf: 'flex-end',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 16,
+    marginTop: 10,
   },
   playerNameTopLeft: {
     backgroundColor: 'rgba(0, 0, 0, 0.7)',
     paddingHorizontal: 12,
     paddingVertical: 6,
     borderRadius: 8,
-    zIndex: 10,
-    marginBottom: 10,
-    alignSelf: 'flex-start',
   },
   playerNameBottomRight: {
     backgroundColor: 'rgba(255, 255, 255, 0.9)',
+    borderWidth: 1,
+    borderColor: '#000',
     paddingHorizontal: 12,
     paddingVertical: 6,
     borderRadius: 8,
-    zIndex: 10,
-    borderWidth: 1,
-    borderColor: '#000',
-    marginTop: 10,
-    alignSelf: 'flex-end',
   },
   playerNameText: {
     fontSize: 14,
@@ -333,6 +392,20 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: 'bold',
     color: '#000',
+  },
+  timerDiv: {
+    padding: 8,
+    backgroundColor: 'black',
+    borderRadius: 8,
+    flexDirection: 'row',
+    gap: 4,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  timerText: {
+    color: 'white',
+    fontSize: 14,
+    fontWeight: '600',
   },
   board: {
     width: BOARD_SIZE,

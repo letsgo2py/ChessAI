@@ -2,35 +2,51 @@ import { StyleSheet, TouchableOpacity, Text, View, Modal, TextInput } from 'reac
 import { useRouter } from 'expo-router';
 import { useState } from 'react';
 
+import { useTheme } from '@/contexts/ThemeContext';
+
 export default function HomeScreen() {
+  const { theme } = useTheme();
   const router = useRouter();
-  const [showModal, setShowModal] = useState(false);
+  const [showOfflineModal, setShowOfflineModal] = useState(false);
   const [showAIModal, setShowAIModal] = useState(false);
   const [player1Name, setPlayer1Name] = useState('');
   const [player2Name, setPlayer2Name] = useState('');
   const [aiDifficulty, setAiDifficulty] = useState<'easy' | 'medium' | 'hard'>('medium');
 
-  const handleFirstButtonPress = () => {
-    setShowModal(true);
+  const [selectedTime, setSelectedTime] = useState('No timer');
+  const timeMap = {
+    'No timer': 0,
+    '5 min': 300,
+    '10 min': 600,
+    '15 min': 900,
+  };
+
+  const handleOfflineChess = () => {
+    setShowOfflineModal(true);
   };
 
   const handleSecondButtonPress = () => {
     setShowAIModal(true);
   };
 
-  const handleOkPress = () => {
-    if (player1Name.trim() && player2Name.trim()) {
-      setShowModal(false);
-      router.push({
-        pathname: '/chess-board',
-        params: {
-          player1: player1Name.trim(),
-          player2: player2Name.trim(),
-        },
-      });
-      setPlayer1Name('');
-      setPlayer2Name('');
-    }
+  const handlePlayOffline = () => {
+    console.log('Timer selected:', selectedTime);
+    const player1 = player1Name.trim() || 'Player 1';
+    const player2 = player2Name.trim() || 'Player 2';
+    const timeInSeconds = timeMap[selectedTime as keyof typeof timeMap] || 0;
+
+    router.push({
+      pathname: '/chess-board',
+      params: {
+        player1,
+        player2,
+        timer: timeInSeconds,
+      },
+    });
+  
+    setShowOfflineModal(false);
+    setPlayer1Name('');
+    setPlayer2Name('');
   };
 
   const handleAIOkPress = () => {
@@ -44,22 +60,22 @@ export default function HomeScreen() {
   };
 
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, { backgroundColor: theme.bg }]}>
       <View style={styles.titleContainer}>
-        <Text style={styles.titleText}>CHESS TIME</Text>
+        <Text style={[styles.titleText, { textShadowColor: theme.primaryText }]}>CHESS TIME</Text>
       </View>
       
       <Modal
-        visible={showModal}
+        visible={showOfflineModal}
         transparent={true}
         animationType="slide"
-        onRequestClose={() => setShowModal(false)}
+        onRequestClose={() => setShowOfflineModal(false)}
       >
         <View style={styles.modalOverlay}>
-          <View style={styles.modalContent}>
-            <Text style={styles.modalTitle}>Enter Player Names</Text>
+          <View style={[styles.modalContent, { backgroundColor: theme.sectionContent }]}>
+            <Text style={[styles.modalTitle, { color: theme.primaryText }]}>Enter Player Names</Text>
             
-            <Text style={styles.inputLabel}>Player 1 Name (White):</Text>
+            <Text style={[styles.inputLabel, { color: theme.primaryText }]}>Player 1 Name (White):</Text>
             <TextInput
               style={styles.input}
               placeholder="Enter Player 1 Name"
@@ -68,31 +84,53 @@ export default function HomeScreen() {
               autoFocus={true}
             />
             
-            <Text style={styles.inputLabel}>Player 2 Name (Black):</Text>
+            <Text style={[styles.inputLabel, { color: theme.primaryText }]}>Player 2 Name (Black):</Text>
             <TextInput
               style={styles.input}
               placeholder="Enter Player 2 Name"
               value={player2Name}
               onChangeText={setPlayer2Name}
             />
+
+            <View style={styles.timerContainer}>
+              {['No timer', '5 min', '10 min', '15 min'].map((time) => (
+                <TouchableOpacity
+                  key={time}
+                  style={[
+                    styles.timerOption,
+                    selectedTime === time && styles.selectedTimer,
+                  ]}
+                  onPress={() => setSelectedTime(time)}
+                >
+                  <Text
+                    style={[
+                      { color: theme.timerText },
+                      selectedTime === time && styles.selectedTimerText
+                    ]}
+                  >
+                    {time}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </View>
             
             <View style={styles.modalButtons}>
               <TouchableOpacity
                 style={[styles.modalButton, styles.cancelButton]}
                 onPress={() => {
-                  setShowModal(false);
+                  setShowOfflineModal(false);
                   setPlayer1Name('');
                   setPlayer2Name('');
                 }}
               >
-                <Text style={styles.modalButtonText}>Cancel</Text>
+                <Text style={[styles.modalButtonText, { color: theme.primaryText }]}>Cancel</Text>
               </TouchableOpacity>
               
               <TouchableOpacity
                 style={[styles.modalButton, styles.okButton]}
-                onPress={handleOkPress}
+                onPress={handlePlayOffline}
               >
-                <Text style={styles.modalButtonText}>OK</Text>
+                <Text style={[styles.modalButtonText, { color: theme.primaryText }]}>OK</Text>
               </TouchableOpacity>
             </View>
           </View>
@@ -101,7 +139,7 @@ export default function HomeScreen() {
 
       <TouchableOpacity
         style={styles.button}
-        onPress={handleFirstButtonPress}
+        onPress={handleOfflineChess}
       >
         <Text style={styles.buttonText}>Play with a friend (Offline)</Text>
       </TouchableOpacity>
@@ -113,10 +151,10 @@ export default function HomeScreen() {
         onRequestClose={() => setShowAIModal(false)}
       >
         <View style={styles.modalOverlay}>
-          <View style={styles.modalContent}>
-            <Text style={styles.modalTitle}>Play with AI</Text>
+          <View style={[styles.modalContent, { backgroundColor: theme.sectionContent }]}>
+            <Text style={[styles.modalTitle, { color: theme.primaryText }]}>Play with AI</Text>
             
-            <Text style={styles.inputLabel}>Select AI Difficulty:</Text>
+            <Text style={[styles.inputLabel, { color: theme.primaryText }]}>Select AI Difficulty:</Text>
             <View style={styles.difficultyContainer}>
               <TouchableOpacity
                 style={[
@@ -175,14 +213,14 @@ export default function HomeScreen() {
                 style={[styles.modalButton, styles.cancelButton]}
                 onPress={() => setShowAIModal(false)}
               >
-                <Text style={styles.modalButtonText}>Cancel</Text>
+                <Text style={[styles.modalButtonText, { color: theme.primaryText }]}>Cancel</Text>
               </TouchableOpacity>
               
               <TouchableOpacity
                 style={[styles.modalButton, styles.okButton]}
                 onPress={handleAIOkPress}
               >
-                <Text style={styles.modalButtonText}>Start Game</Text>
+                <Text style={[styles.modalButtonText, { color: theme.primaryText }]}>Start Game</Text>
               </TouchableOpacity>
             </View>
           </View>
@@ -209,7 +247,6 @@ export default function HomeScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#fff',
     alignItems: 'center',
     justifyContent: 'center',
     gap: 20,
@@ -228,7 +265,6 @@ const styles = StyleSheet.create({
     fontSize: 42,
     fontWeight: '900',
     letterSpacing: 4,
-    textShadowColor: '#000',
     textShadowOffset: { width: 2, height: 2 },
     textShadowRadius: 4,
     color: '#007AFF',
@@ -257,7 +293,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   modalContent: {
-    backgroundColor: '#fff',
     borderRadius: 12,
     padding: 20,
     width: '80%',
@@ -275,7 +310,6 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     marginTop: 10,
     marginBottom: 5,
-    color: '#000',
   },
   input: {
     borderWidth: 1,
@@ -307,7 +341,7 @@ const styles = StyleSheet.create({
   modalButtonText: {
     fontSize: 16,
     fontWeight: '600',
-    color: '#000',
+    color: '#ffffff',
   },
   difficultyContainer: {
     flexDirection: 'row',
@@ -335,5 +369,28 @@ const styles = StyleSheet.create({
   },
   difficultyButtonTextActive: {
     color: '#fff',
+  },
+  timerContainer: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginVertical: 10,
+  },
+
+  timerOption: {
+    paddingVertical: 8,
+    paddingHorizontal: 8,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#ccc',
+  },
+
+  selectedTimer: {
+    backgroundColor: '#7c1111',
+    borderColor: '#7c1111',
+  },
+
+  selectedTimerText: {
+    color: '#fff',
+    fontWeight: 'bold',
   },
 });

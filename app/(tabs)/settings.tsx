@@ -7,6 +7,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 
 import { IconSymbol } from '@/components/ui/icon-symbol';
 import Ionicons from '@expo/vector-icons/Ionicons';
+import { useTheme } from '@/contexts/ThemeContext';
 
 type settingItemType = {
   icon: string;
@@ -17,13 +18,15 @@ type settingItemType = {
   onSwitchChange?: (value: boolean) => void;
   onPress?: () => void;
   danger?: boolean;
+  isLastItem?: boolean,
 };
 
 export default function SettingsScreen() {
+  const { theme, darkMode, setDarkMode } = useTheme();
   const [soundEnabled, setSoundEnabled] = useState(true);
   const [vibrationEnabled, setVibrationEnabled] = useState(true);
   const [notificationsEnabled, setNotificationsEnabled] = useState(true);
-  const [darkMode, setDarkMode] = useState(false);
+  // const [darkMode, setDarkMode] = useState(false);
   const router = useRouter();
 
   const currentYr = new Date().getFullYear();
@@ -61,10 +64,11 @@ export default function SettingsScreen() {
     switchValue, 
     onSwitchChange,
     onPress,
-    danger
+    danger,
+    isLastItem
   }: settingItemType) => (
     <TouchableOpacity 
-      style={styles.settingItem} 
+      style={[styles.settingItem, !isLastItem && { borderBottomWidth: 1, borderBottomColor: theme.border } ]} 
       onPress={onPress}
       disabled={hasSwitch}
     >
@@ -73,7 +77,7 @@ export default function SettingsScreen() {
           <IconSymbol name={icon as any} size={22} color={danger ? '#fff' : '#007AFF'} />
         </View>
         <View style={styles.settingTextContainer}>
-          <Text style={[styles.settingTitle, danger && styles.settingTitleDanger]}>{title}</Text>
+          <Text style={[styles.settingTitle, danger && styles.settingTitleDanger, { color: theme.primaryText }]}>{title}</Text>
           {subtitle && <Text style={styles.settingSubtitle}>{subtitle}</Text>}
         </View>
       </View>
@@ -92,9 +96,9 @@ export default function SettingsScreen() {
   );
 
   return (
-    <ScrollView style={styles.container}>
+    <ScrollView style={[styles.container, { backgroundColor: theme.settingBg }]}>
       {/* Profile Section */}
-      <View style={styles.profileSection}>
+      <View style={[styles.profileSection, { backgroundColor: theme.profileSection }]}>
         <View style={styles.avatar}>
           <Text style={styles.avatarText}>
             {user?.displayName?.charAt(0).toUpperCase() || user?.email?.charAt(0).toUpperCase() || 'U'}
@@ -106,8 +110,8 @@ export default function SettingsScreen() {
 
       {/* Game Settings */}
       <View style={styles.section}>
-        <Text style={styles.sectionTitle}>Game Settings</Text>
-        <View style={styles.sectionContent}>
+        <Text style={[styles.sectionTitle, { color: theme.sectionTitle }]}>Game Settings</Text>
+        <View style={[styles.sectionContent, { backgroundColor: theme.sectionContent }]}>
           <SettingItem
             icon="speaker.wave.2.fill"
             title="Sound Effects"
@@ -123,14 +127,15 @@ export default function SettingsScreen() {
             hasSwitch
             switchValue={vibrationEnabled}
             onSwitchChange={setVibrationEnabled}
+            isLastItem
           />
         </View>
       </View>
 
       {/* App Settings */}
       <View style={styles.section}>
-        <Text style={styles.sectionTitle}>App Settings</Text>
-        <View style={styles.sectionContent}>
+        <Text style={[styles.sectionTitle, { color: theme.sectionTitle }]}>App Settings</Text>
+        <View style={[styles.sectionContent, { backgroundColor: theme.sectionContent }]}>
           <SettingItem
             icon="bell.fill"
             title="Notifications"
@@ -146,14 +151,15 @@ export default function SettingsScreen() {
             hasSwitch
             switchValue={darkMode}
             onSwitchChange={setDarkMode}
+            isLastItem
           />
         </View>
       </View>
 
       {/* About */}
       <View style={styles.section}>
-        <Text style={styles.sectionTitle}>About</Text>
-        <View style={styles.sectionContent}>
+        <Text style={[styles.sectionTitle, { color: theme.sectionTitle }]}>About</Text>
+        <View style={[styles.sectionContent, { backgroundColor: theme.sectionContent }]}>
           <SettingItem
             icon="info.circle.fill"
             title="App Version"
@@ -166,12 +172,13 @@ export default function SettingsScreen() {
           <SettingItem
             icon="hand.raised.fill"
             title="Privacy Policy"
+            isLastItem
           />
         </View>
       </View>
 
       <View style={styles.section}>
-        <View style={styles.sectionContent}>
+        <View style={[styles.sectionContent, { backgroundColor: theme.sectionContent }]}>
           <TouchableOpacity style={styles.settingItem} onPress={handleLogout}>
             <View style={styles.logoutContainer}>
               <Ionicons name="exit-outline" size={24} color="#e74c3c" />
@@ -191,10 +198,10 @@ export default function SettingsScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#f5f5f5',
+    // backgroundColor: '#f5f5f5',
   },
   profileSection: {
-    backgroundColor: '#007AFF',
+    // backgroundColor: '#007AFF',
     paddingTop: 60,
     paddingBottom: 30,
     alignItems: 'center',
@@ -230,13 +237,13 @@ const styles = StyleSheet.create({
   sectionTitle: {
     fontSize: 14,
     fontWeight: '600',
-    color: '#666',
+    // color: '#666',
     marginBottom: 8,
     marginLeft: 4,
     textTransform: 'uppercase',
   },
   sectionContent: {
-    backgroundColor: '#fff',
+    // backgroundColor: '#fff',
     borderRadius: 12,
     overflow: 'hidden',
   },
@@ -245,8 +252,8 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
     padding: 14,
-    borderBottomWidth: 1,
-    borderBottomColor: '#f0f0f0',
+    // borderBottomWidth: 1,
+    // borderBottomColor: '#f0f0f0',
   },
   settingLeft: {
     flexDirection: 'row',

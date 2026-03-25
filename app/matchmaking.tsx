@@ -2,8 +2,10 @@ import { StyleSheet, View, Text, ActivityIndicator } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useState, useEffect } from 'react';
 import { connectSocket, disconnectSocket, getSocket } from '../config/socket';
+import { useTheme } from '@/contexts/ThemeContext';
 
 export default function MatchmakingScreen() {
+  const { theme } = useTheme();
   const router = useRouter();
   const [status, setStatus] = useState<'searching' | 'found' | 'error'>('searching');
   const [queuePosition, setQueuePosition] = useState<number | null>(null);
@@ -68,13 +70,13 @@ export default function MatchmakingScreen() {
   };
 
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, { backgroundColor: theme.bg }]}>
       <View style={styles.content}>
         
         {status === 'searching' && (
           <>
             <ActivityIndicator size="large" color="#007AFF" />
-            <Text style={styles.title}>Searching for Opponent...</Text>
+            <Text style={[styles.title, { color: theme.primaryText }]}>Searching for Opponent...</Text>
             {queuePosition !== null && (
               <Text style={styles.subtitle}>
                 Players in queue: {queuePosition}
@@ -88,14 +90,14 @@ export default function MatchmakingScreen() {
 
         {status === 'found' && (
           <>
-            <Text style={styles.title}>Match Found!</Text>
+            <Text style={[styles.title, { color: theme.bg }]}>Match Found!</Text>
             <Text style={styles.subtitle}>Starting game...</Text>
           </>
         )}
 
         {status === 'error' && (
           <>
-            <Text style={styles.title}>Connection Error</Text>
+            <Text style={[styles.title, { color: theme.bg }]}>Connection Error</Text>
             <Text style={styles.subtitle}>Please try again</Text>
           </>
         )}
@@ -122,7 +124,6 @@ const styles = StyleSheet.create({
   title: {
     fontSize: 24,
     fontWeight: 'bold',
-    color: '#000',
     marginTop: 20,
     marginBottom: 10,
   },
