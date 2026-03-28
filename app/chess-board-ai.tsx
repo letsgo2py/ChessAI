@@ -1,23 +1,24 @@
 import { StyleSheet, View, Text, TouchableOpacity, Image, Animated, Dimensions } from 'react-native';
 import { useLocalSearchParams } from 'expo-router';
-import { useState, useEffect, useRef} from 'react';
-import {SafeAreaView, SafeAreaProvider} from 'react-native-safe-area-context';
+import { useState, useEffect, useRef, useMemo } from 'react';
+import { SafeAreaView, SafeAreaProvider } from 'react-native-safe-area-context';
 import { pieceImages } from '../constants/pieces';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import AntDesign from '@expo/vector-icons/AntDesign';
 import * as Haptics from 'expo-haptics';
 import { useTheme } from '@/contexts/ThemeContext';
 
-import TopHeader from './top-header'
-import BoardSquares from './board-squares'
-import ChessSmoothPieces from './chess-pieces'
-import { getPieceColor } from '@/utils/chess-utils'
-import { getAnimatedValue } from '@/utils/animation-utils'
+import TopHeader from './top-header';
+import BoardSquares from './board-squares';
+import ChessSmoothPieces from './chess-pieces';
+import { getPieceColor, formatTime, findKingPosition, isKingInCheck, simulateMove, getSafeMoves, getAllSafeMoves } from '@/utils/chess-utils';
+import { getAnimatedValue } from '@/utils/animation-utils';
 import { getPossibleMoves } from '@/utils/chessMoves';
 import { buildPiecesFromBoard } from '@/utils/chessPieces';
 
 import { INITIAL_BOARD } from '@/constants/chessBoard';
 
+import GameModal from "./chess-result";
 
 type AnimatedPiece = {
   x: Animated.Value;
@@ -60,6 +61,7 @@ export default function ChessBoardAIScreen() {
   const [possibleMoves, setPossibleMoves] = useState<Array<{row: number, col: number}>>([]);
   const [currentPlayer, setCurrentPlayer] = useState<'w' | 'b'>('w');
   const [isAIThinking, setIsAIThinking] = useState(false);
+  const [gameResult, setGameResult] = useState<null | {type: "checkmate" | "stalemate"; winner?: "w" | "b"}>(null);
 
   const [undoStack, setUndoStack] = useState<GameState[]>([]);
   const [redoStack, setRedoStack] = useState<GameState[]>([]);
@@ -70,6 +72,42 @@ export default function ChessBoardAIScreen() {
   const [pieces, setPieces] = useState<Pieces>(
     buildPiecesFromBoard(INITIAL_BOARD.map(row => [...row]))
   );
+
+  const kingPosition = findKingPosition(currentPlayer, board);
+  const isInCheck = kingPosition ? isKingInCheck(board, kingPosition.row, kingPosition.col, currentPlayer) : false;
+  const safeMoves = getSafeMoves({
+    selectedSquare,
+    possibleMoves,
+    board,
+    currentPlayer,
+  });
+
+  const allSafeMoves = useMemo(
+    () =>
+      getAllSafeMoves({
+        board,
+        currentPlayer,
+      }),
+    [board, currentPlayer]
+  );
+
+  useEffect(() => {
+    if (allSafeMoves.length === 0) {
+      if (isInCheck) {
+        setGameResult({
+          type: "checkmate",
+          winner: currentPlayer === "w" ? "b" : "w"
+        });
+        console.log("CHECMATE MY FRIEND")
+      } else {
+        setGameResult({
+          type: "stalemate"
+        });
+        console.log("STALEMATE MY FRIEND")
+
+      }
+    }
+  }, [allSafeMoves, isInCheck]);
 
   useEffect(() => {
     let interval: ReturnType<typeof setInterval> | null = null;
@@ -90,12 +128,6 @@ export default function ChessBoardAIScreen() {
       if (interval) clearInterval(interval);
     };  
   }, [currentPlayer, isAIThinking])
-
-  const formatTime = (seconds: number) => {
-    const m = Math.floor(seconds / 60);
-    const s = seconds % 60;
-    return `${m}:${s.toString().padStart(2, '0')}`;
-  };
 
   // Move the piece on board with smooth animation 
   const movePiece = (key: string, row: number, col: number) => {
@@ -160,41 +192,24 @@ export default function ChessBoardAIScreen() {
 
 
     const getLegalMoves = (
-      color: 'w' | 'b',
+      currentPlayer: 'w' | 'b',
       boardState: string[][]
     ) => {
-      const moves = getAllMoves(color, boardState);
+      const moves = getAllMoves(currentPlayer, boardState);
 
       return moves.filter(move => {
-        const newBoard = applyMove(boardState, move);
-        const kingPos = findKingPosition(color, newBoard);
+        const newBoard = simulateMove(boardState, move.from, move.to);
+        const kingPos = findKingPosition(currentPlayer, newBoard);
         if (!kingPos) return false;
 
         return !isKingInCheck(
+          newBoard,
           kingPos.row,
           kingPos.col,
-          color,
-          newBoard
+          currentPlayer
         );
       });
     };
-
-    // isCheckmate(currentBoard, opponent)
-    const isCheckmate = (
-      boardState: string[][],
-      color: 'w' | 'b'
-    ): boolean => {
-      const kingPos = findKingPosition(color, boardState);
-      if (!kingPos) return true; // king captured = lost
-
-      if (!isKingInCheck(kingPos.row, kingPos.col, color, boardState)) {
-        return false;
-      }
-
-      const legalMoves = getLegalMoves(color, boardState);
-      return legalMoves.length === 0;
-    };
-
 
     const evaluateBoard = (board: string[][]): number => {
       const values: Record<string, number> = {
@@ -214,29 +229,12 @@ export default function ChessBoardAIScreen() {
       return score;
     };
 
-    const applyMove = (
-      board: string[][],
-      move: { from: { row: number; col: number }; to: { row: number; col: number } }
-    ): string[][] => {
-      const newBoard = board.map(r => [...r]);
-
-      newBoard[move.to.row][move.to.col] =
-        newBoard[move.from.row][move.from.col];
-
-      newBoard[move.from.row][move.from.col] = '';
-
-      return newBoard;
-    };
-
     const minimax = (
       board: string[][],
       depth: number,
       isMaximizing: boolean
     ): number => {
-
-      if (isCheckmate(board, 'w')) return Infinity;
-      if (isCheckmate(board, 'b')) return -Infinity;
-
+      
       if (depth === 0) {
         return evaluateBoard(board);
       }
@@ -251,7 +249,7 @@ export default function ChessBoardAIScreen() {
       if (isMaximizing) {
         let maxEval = -Infinity;
         for (const move of moves) {
-          const newBoard = applyMove(board, move);
+          const newBoard = simulateMove(board, move.from, move.to);
           const evalScore = minimax(newBoard, depth - 1, false);
           maxEval = Math.max(maxEval, evalScore);
         }
@@ -259,7 +257,7 @@ export default function ChessBoardAIScreen() {
       } else {
         let minEval = Infinity;
         for (const move of moves) {
-          const newBoard = applyMove(board, move);
+          const newBoard = simulateMove(board, move.from, move.to);
           const evalScore = minimax(newBoard, depth - 1, true);
           minEval = Math.min(minEval, evalScore);
         }
@@ -277,7 +275,7 @@ export default function ChessBoardAIScreen() {
       let bestMoves: typeof moves = [];
 
       for (const move of moves) {
-        const newBoard = applyMove(board, move);
+        const newBoard = simulateMove(board, move.from, move.to);
         const score = minimax(newBoard, depth - 1, false);
 
         if (score > bestScore) {
@@ -357,12 +355,6 @@ export default function ChessBoardAIScreen() {
           newBoard[chosenMove.from.row][chosenMove.from.col] = '';
           setBoard(newBoard);
 
-          if (isCheckmate(newBoard, 'w')) {
-            alert('Checkmate! AI wins 🤖');
-            setIsAIThinking(false);
-            return updatedPieces;
-          }
-
           setCurrentPlayer('w');
           setIsAIThinking(false);
 
@@ -370,42 +362,6 @@ export default function ChessBoardAIScreen() {
         });
       }, aiTimeToThink);
     };
-
-    const isKingInCheck = (kingRow: number, kingCol: number, kingColor: 'w' | 'b', boardState: string[][]): boolean => {
-      const opponentColor = kingColor === 'w' ? 'b' : 'w';
-      
-      for (let row = 0; row < 8; row++) {
-        for (let col = 0; col < 8; col++) {
-          const piece = boardState[row][col];
-          const pieceColor = getPieceColor(piece);
-          
-          if (pieceColor === opponentColor) {
-            const moves = getPossibleMoves(row, col, piece, boardState);
-            if (moves.some(move => move.row === kingRow && move.col === kingCol)) {
-              return true;
-            }
-          }
-        }
-      }
-      
-      return false;
-    };
-
-    const findKingPosition = (color: 'w' | 'b', boardState: string[][]): {row: number, col: number} | null => {
-      const kingPiece = color === 'w' ? 'wk' : 'bk';
-      for (let row = 0; row < 8; row++) {
-        for (let col = 0; col < 8; col++) {
-          if (boardState[row][col] === kingPiece) {
-            return { row, col };
-          }
-        }
-      }
-      return null;
-    };
-
-    // Check if current player's king is in check
-    const kingPosition = findKingPosition(currentPlayer, board);
-    const isInCheck = kingPosition ? isKingInCheck(kingPosition.row, kingPosition.col, currentPlayer, board) : false;
 
     const handleSquarePress = (row: number, col: number) => {
       if (redoStack.length > 0) return;
@@ -476,11 +432,6 @@ export default function ChessBoardAIScreen() {
           newBoard[row][col] = newBoard[selectedSquare.row][selectedSquare.col];
           newBoard[selectedSquare.row][selectedSquare.col] = '';
           setBoard(newBoard);
-
-          if (isCheckmate(newBoard, 'b')) {
-            alert('Checkmate! You win 🎉');
-            return;
-          }
 
           setSelectedSquare(null);
           setPossibleMoves([]);
@@ -609,6 +560,35 @@ export default function ChessBoardAIScreen() {
       syncAnimatedPieces(nextState.pieces);
     };
 
+    const resetGame = () => {
+      const freshBoard = INITIAL_BOARD.map(row => [...row]);
+
+      // Reset board
+      setBoard(freshBoard);
+
+      // Rebuild pieces from board (THIS is the correct way)
+      setPieces(buildPiecesFromBoard(freshBoard));
+
+      // Reset turn
+      setCurrentPlayer('w');
+
+      // Reset selection
+      setSelectedSquare(null);
+      setPossibleMoves([]);
+
+      // Reset timers
+      setWhiteTime(5*60);
+      setBlackTime(5*60);
+    
+      // Reset animated pieces properly
+      Object.keys(animatedPieces).forEach(key => {
+        delete animatedPieces[key];
+      });
+
+      // Reset modal
+      setGameResult(null);
+    };
+
   return (
     <SafeAreaProvider>
       <SafeAreaView style={[styles.container, { backgroundColor: theme.bg }]}>
@@ -642,6 +622,9 @@ export default function ChessBoardAIScreen() {
               handleSquarePress={handleSquarePress} 
               possibleMoves={possibleMoves}
               board={board}
+              isInCheck={isInCheck}
+              kingPosition={kingPosition}
+              safeMoves={safeMoves}
             />
 
             {/* Animated Pieces */}
@@ -687,6 +670,14 @@ export default function ChessBoardAIScreen() {
           </View>
 
         </View>
+        <GameModal
+          visible={!!gameResult}
+          gameResult={gameResult}
+          onRestart={() => {
+            resetGame();
+            setGameResult(null);
+          }}
+        />
       </SafeAreaView>
     </SafeAreaProvider>
   );

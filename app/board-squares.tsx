@@ -18,6 +18,9 @@ type BoardSquaresProps = {
   handleSquarePress: (row: number, col: number) => void;
   possibleMoves: Square[];
   board: string[][];
+  isInCheck: boolean;
+  kingPosition: Square | null;
+  safeMoves: Square[];
 };
 
 const boardSize = 8;
@@ -32,9 +35,21 @@ function BoardSquares({
   handleSquarePress,
   possibleMoves,
   board,
+  isInCheck,
+  kingPosition,
+  safeMoves
 } : BoardSquaresProps) {
 
   const getSquareHighlightStyle = (row: number, col: number) => {
+    if (
+      isInCheck &&
+      kingPosition &&
+      row === kingPosition.row &&
+      col === kingPosition.col
+    ) {
+      return styles.checkSquare;
+    }
+
     if (
       selectedSquare &&
       selectedSquare.row === row &&
@@ -43,15 +58,15 @@ function BoardSquares({
       return styles.selectedSquare;
     }
 
-    const isPossibleMove = possibleMoves.some(
-      move => move.row === row && move.col === col
+    const isSafeMove = safeMoves.some(
+      m => m.row === row && m.col === col
     );
 
-    if (!isPossibleMove) return null;
+    if (!isSafeMove) return null;
 
-    const pieceOnSquare = board[row][col];
+    const piece = board[row][col];
 
-    if (pieceOnSquare && getPieceColor(pieceOnSquare) !== currentPlayer) {
+    if (piece && getPieceColor(piece) !== currentPlayer) {
       return styles.checkSquare; 
     }
 

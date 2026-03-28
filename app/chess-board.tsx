@@ -2,20 +2,24 @@
 
 import { StyleSheet, View, Text, TouchableOpacity, Image, Animated, Dimensions } from 'react-native';
 import { useLocalSearchParams } from 'expo-router';
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useMemo } from 'react';
 import { SafeAreaView, SafeAreaProvider } from 'react-native-safe-area-context';
 import { pieceImages } from '../constants/pieces';
 import AntDesign from '@expo/vector-icons/AntDesign';
 import { useTheme } from '@/contexts/ThemeContext';
 
 import TopHeader from './top-header';
-import { getPieceColor } from '@/utils/chess-utils';
+import BoardSquares from './board-squares';
+import ChessSmoothPieces from './chess-pieces';
+import { getPieceColor, formatTime, findKingPosition, isKingInCheck, getSafeMoves, getAllSafeMoves } from '@/utils/chess-utils';
 import { getAnimatedValue } from '@/utils/animation-utils';
 import { getPossibleMoves } from '@/utils/chessMoves';
 import { buildPiecesFromBoard } from '@/utils/chessPieces';
 
 import { INITIAL_BOARD } from '@/constants/chessBoard';
 import { green } from 'react-native-reanimated/lib/typescript/Colors';
+
+import GameModal from "./chess-result";
 
 const screenWidth = Dimensions.get('window').width;
 const BOARD_SIZE = screenWidth * 0.97; // 97% of screen width
@@ -52,10 +56,47 @@ export default function ChessBoardScreen() {
   const [selectedSquare, setSelectedSquare] = useState<{row: number, col: number} | null>(null);
   const [possibleMoves, setPossibleMoves] = useState<Array<{row: number, col: number}>>([]);
   const [currentPlayer, setCurrentPlayer] = useState<'w' | 'b'>('w');
-
+  const [gameResult, setGameResult] = useState<null | {type: "checkmate" | "stalemate"; winner?: "w" | "b"}>(null);
+  
   const [pieces, setPieces] = useState<Pieces>(
     buildPiecesFromBoard(INITIAL_BOARD.map(row => [...row]))
   );
+
+  const kingPosition = findKingPosition(currentPlayer, board);
+  const isInCheck = kingPosition ? isKingInCheck(board, kingPosition.row, kingPosition.col, currentPlayer) : false;
+  const safeMoves = getSafeMoves({
+    selectedSquare,
+    possibleMoves,
+    board,
+    currentPlayer,
+  });
+
+  const allSafeMoves = useMemo(
+    () =>
+      getAllSafeMoves({
+        board,
+        currentPlayer,
+      }),
+    [board, currentPlayer]
+  );
+
+  useEffect(() => {
+    if (allSafeMoves.length === 0) {
+      if (isInCheck) {
+        setGameResult({
+          type: "checkmate",
+          winner: currentPlayer === "w" ? "b" : "w"
+        });
+        console.log("CHECMATE MY FRIEND")
+      } else {
+        setGameResult({
+          type: "stalemate"
+        });
+        console.log("STALEMATE MY FRIEND")
+
+      }
+    }
+  }, [allSafeMoves, isInCheck]);
 
   useEffect(() => {
     if (initialTime === 0) return; // No timer mode
@@ -95,45 +136,6 @@ export default function ChessBoardScreen() {
 
   };
   
-  // Check if a king at given position is in check
-  const isKingInCheck = (kingRow: number, kingCol: number, kingColor: 'w' | 'b'): boolean => {
-    const opponentColor = kingColor === 'w' ? 'b' : 'w';
-    
-    // Check all opponent pieces and see if any can attack the king
-    for (let row = 0; row < 8; row++) {
-      for (let col = 0; col < 8; col++) {
-        const piece = board[row][col];
-        const pieceColor = getPieceColor(piece);
-        
-        if (pieceColor === opponentColor) {
-          const moves = getPossibleMoves(row, col, piece, board);
-          // Check if any move can capture the king
-          if (moves.some(move => move.row === kingRow && move.col === kingCol)) {
-            return true;
-          }
-        }
-      }
-    }
-    
-    return false;
-  };
-
-  // Find the king's position for a given color
-  const findKingPosition = (color: 'w' | 'b'): {row: number, col: number} | null => {
-    const kingPiece = color === 'w' ? 'wk' : 'bk';
-    for (let row = 0; row < 8; row++) {
-      for (let col = 0; col < 8; col++) {
-        if (board[row][col] === kingPiece) {
-          return { row, col };
-        }
-      }
-    }
-    return null;
-  };
-
-  const kingPosition = findKingPosition(currentPlayer);
-  const isInCheck = kingPosition ? isKingInCheck(kingPosition.row, kingPosition.col, currentPlayer) : false;
-
   const handleSquarePress = (row: number, col: number) => {
     const piece = board[row][col];
     const pieceColor = getPieceColor(piece);
@@ -203,30 +205,6 @@ export default function ChessBoardScreen() {
     }
   };
 
-  const getSquareHighlightStyle = (row: number, col: number) => {
-    if (
-      selectedSquare &&
-      selectedSquare.row === row &&
-      selectedSquare.col === col
-    ) {
-      return styles.selectedSquare;
-    }
-
-    const isPossibleMove = possibleMoves.some(
-      move => move.row === row && move.col === col
-    );
-
-    if (!isPossibleMove) return null;
-
-    const pieceOnSquare = board[row][col];
-
-    if (pieceOnSquare && getPieceColor(pieceOnSquare) === 'b') {
-      return styles.checkSquare; 
-    }
-
-    return styles.possibleMoveSquare;
-  };
-
   // Create chess board squares
   const squares = [];
   for (let row = 0; row < boardSize; row++) {
@@ -241,10 +219,35 @@ export default function ChessBoardScreen() {
     }
   }
 
-  const formatTime = (seconds: number) => {
-    const m = Math.floor(seconds / 60);
-    const s = seconds % 60;
-    return `${m}:${s.toString().padStart(2, '0')}`;
+  const resetGame = () => {
+    const freshBoard = INITIAL_BOARD.map(row => [...row]);
+
+    // Reset board
+    setBoard(freshBoard);
+
+    // Rebuild pieces from board (THIS is the correct way)
+    setPieces(buildPiecesFromBoard(freshBoard));
+
+    // Reset turn
+    setCurrentPlayer('w');
+
+    // Reset selection
+    setSelectedSquare(null);
+    setPossibleMoves([]);
+
+    // Reset timers
+    if (initialTime > 0) {
+      setWhiteTime(initialTime);
+      setBlackTime(initialTime);
+    }
+
+    // Reset animated pieces properly
+    Object.keys(animatedPieces).forEach(key => {
+      delete animatedPieces[key];
+    });
+
+    // Reset modal
+    setGameResult(null);
   };
 
   return (
@@ -257,9 +260,6 @@ export default function ChessBoardScreen() {
             {/* Player 2 Name (Black) - Top Left */}
             <View style={styles.playerNameTopLeft}>
               <Text style={styles.playerNameText}>{player2Name}</Text>
-              {currentPlayer === 'b' && isInCheck && (
-                <Text style={styles.checkText}> - CHECK!</Text>
-              )}
             </View>
 
             {/* Black Player Timer*/}
@@ -272,60 +272,32 @@ export default function ChessBoardScreen() {
           </View>
           
           <View style={styles.board}>
-            {squares.map(square => (
-              <TouchableOpacity
-                key={square.key}
-                style={[
-                  styles.square,
-                  square.isLight ? styles.lightSquare : styles.darkSquare,
-                  getSquareHighlightStyle(square.row, square.col),
-                  {
-                    position: 'absolute',
-                    top: square.row * SQUARE_SIZE,
-                    left: square.col * SQUARE_SIZE,
-                  },
-                ]}
-                onPress={() => handleSquarePress(square.row, square.col)}
-                // disabled={currentPlayer !== 'w'}
-              />
-            ))}
+
+            <BoardSquares 
+              selectedSquare={selectedSquare} 
+              currentPlayer={currentPlayer}
+              isAIThinking={false}
+              handleSquarePress={handleSquarePress} 
+              possibleMoves={possibleMoves}
+              board={board}
+              isInCheck={isInCheck}
+              kingPosition={kingPosition}
+              safeMoves={safeMoves}
+            />
 
             {/* Animated Pieces */}
-            {Object.entries(pieces).map(([key, piece]) => {
-              const anim = getAnimatedValue(
-                                animatedPieces,
-                                key, 
-                                piece.row, 
-                                piece.col,
-                                SQUARE_SIZE
-                              );
-
-              return (
-                <Animated.View
-                  key={key}
-                  pointerEvents="none"
-                  style={[
-                    styles.animatedPiece,
-                    { 
-                      transform: [ 
-                        { translateX: anim.x }, { translateY: anim.y },
-                      ], 
-                    },
-                  ]}
-                >
-                  <Image source={pieceImages[piece.type]} style={styles.piece} resizeMode="contain" />
-                </Animated.View>
-              );
-            })}
+            <ChessSmoothPieces
+              pieces={pieces}
+              animatedPieces={animatedPieces}
+              getAnimatedValue={getAnimatedValue}
+              squareSize={SQUARE_SIZE}
+            />
           </View>
           
           <View style={styles.whitePlayerInfoDiv}>
             {/* Player 1 Name (White) - Bottom Right */}
             <View style={styles.playerNameBottomRight}>
               <Text style={styles.playerNameTextWhite}>{player1Name}</Text>
-              {currentPlayer === 'w' && isInCheck && (
-                <Text style={styles.checkText}> - CHECK!</Text>
-              )}
             </View>
             {/* White Player Timer */}
             {initialTime > 0 && (
@@ -336,6 +308,14 @@ export default function ChessBoardScreen() {
             )}
           </View>
         </View>
+        <GameModal
+          visible={!!gameResult}
+          gameResult={gameResult}
+          onRestart={() => {
+            resetGame();
+            setGameResult(null);
+          }}
+        />
       </SafeAreaView>
     </SafeAreaProvider>
   );
