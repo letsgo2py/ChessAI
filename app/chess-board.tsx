@@ -4,7 +4,8 @@ import { StyleSheet, View, Text, TouchableOpacity, Image, Animated, Dimensions }
 import { useLocalSearchParams } from 'expo-router';
 import { useState, useEffect, useRef, useMemo } from 'react';
 import { SafeAreaView, SafeAreaProvider } from 'react-native-safe-area-context';
-import { pieceImages } from '../constants/pieces';
+import * as Haptics from "expo-haptics";
+import { Audio } from "expo-av";
 import AntDesign from '@expo/vector-icons/AntDesign';
 import { useTheme } from '@/contexts/ThemeContext';
 
@@ -19,29 +20,31 @@ import { buildPiecesFromBoard } from '@/utils/chessPieces';
 import { INITIAL_BOARD } from '@/constants/chessBoard';
 import { green } from 'react-native-reanimated/lib/typescript/Colors';
 
+const checkmateSound = require("../assets/sounds/checkmate_sound_effect.mp3");
+const pieceSound = require("../assets/sounds/chess-movement-sound.mp3");
+const kingCheckSound = require("../assets/sounds/king-check.mp3");
+
+import {
+  Player,
+  Pieces,
+  BoardState,
+  AnimatedPieces,
+  GameResult,
+  Move,
+} from '@/types/chess-types';
+
+import { resetGame } from '@/utils/chess-reset';
+
 import GameModal from "./chess-result";
 
 const screenWidth = Dimensions.get('window').width;
 const BOARD_SIZE = screenWidth * 0.97; // 97% of screen width
 const SQUARE_SIZE = Math.floor(BOARD_SIZE / 8);   // Each square size
 
-type AnimatedPiece = {
-  x: Animated.Value;
-  y: Animated.Value;
-};
-
-type Piece = {
-  row: number;
-  col: number;
-  type: keyof typeof pieceImages;
-};
-
-type Pieces = Record<string, Piece>;
-
 export default function ChessBoardScreen() {
   const { theme } = useTheme();
   const params = useLocalSearchParams();
-  const animatedPieces = useRef<Record<string, AnimatedPiece>>({}).current;
+  const animatedPieces = useRef<AnimatedPieces>({}).current;
   const player1Name = (params.player1 as string) || 'Player 1';
   const player2Name = (params.player2 as string) || 'Player 2';
   const initialTime = Array.isArray(params.timer)
@@ -50,13 +53,15 @@ export default function ChessBoardScreen() {
   const [whiteTime, setWhiteTime] = useState(initialTime);
   const [blackTime, setBlackTime] = useState(initialTime);
 
-  const boardSize = 8;
-
-  const [board, setBoard] = useState<string[][]>(INITIAL_BOARD.map(row => [...row]));
+  const [board, setBoard] = useState<BoardState>(INITIAL_BOARD.map(row => [...row]));
   const [selectedSquare, setSelectedSquare] = useState<{row: number, col: number} | null>(null);
-  const [possibleMoves, setPossibleMoves] = useState<Array<{row: number, col: number}>>([]);
-  const [currentPlayer, setCurrentPlayer] = useState<'w' | 'b'>('w');
-  const [gameResult, setGameResult] = useState<null | {type: "checkmate" | "stalemate"; winner?: "w" | "b"}>(null);
+  const [possibleMoves, setPossibleMoves] = useState<Array<Move>>([]);
+  const [currentPlayer, setCurrentPlayer] = useState<Player>('w');
+  const [gameResult, setGameResult] = useState<GameResult>(null);
+
+  const checkmateSoundRef = useRef<Audio.Sound | null>(null);
+  const pieceSoundRef = useRef<Audio.Sound | null>(null);
+  const kingCheckSoundRef = useRef<Audio.Sound | null>(null);
   
   const [pieces, setPieces] = useState<Pieces>(
     buildPiecesFromBoard(INITIAL_BOARD.map(row => [...row]))
@@ -81,6 +86,27 @@ export default function ChessBoardScreen() {
   );
 
   useEffect(() => {
+    const loadSounds = async () => {
+      const { sound: moveSound } = await Audio.Sound.createAsync(pieceSound);
+      pieceSoundRef.current = moveSound;
+
+      const { sound: kingInHelpSound} = await Audio.Sound.createAsync(kingCheckSound);
+      kingCheckSoundRef.current = kingInHelpSound;
+
+      const { sound } = await Audio.Sound.createAsync(checkmateSound);
+      checkmateSoundRef.current = sound;
+    };
+
+    loadSounds();
+
+    return () => {
+      pieceSoundRef.current?.unloadAsync();
+      kingCheckSoundRef.current?.unloadAsync();
+      checkmateSoundRef.current?.unloadAsync();
+    };
+  }, []);
+
+  useEffect(() => {
     if (allSafeMoves.length === 0) {
       if (isInCheck) {
         setGameResult({
@@ -95,6 +121,8 @@ export default function ChessBoardScreen() {
         console.log("STALEMATE MY FRIEND")
 
       }
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+      checkmateSoundRef.current?.replayAsync();
     }
   }, [allSafeMoves, isInCheck]);
 
@@ -147,8 +175,7 @@ export default function ChessBoardScreen() {
 
       if (isPossibleMove) {
         const newBoard = board.map(r => [...r]);
-        const selectedPiece =
-          newBoard[selectedSquare.row][selectedSquare.col];
+        const selectedPiece = newBoard[selectedSquare.row][selectedSquare.col];
 
         const pieceEntry = Object.entries(pieces).find(
           ([, p]) =>
@@ -182,6 +209,8 @@ export default function ChessBoardScreen() {
         newBoard[selectedSquare.row][selectedSquare.col] = '';
         setBoard(newBoard);
 
+        pieceSoundRef.current?.replayAsync();
+
         setSelectedSquare(null);
         setPossibleMoves([]);
         setCurrentPlayer(currentPlayer === 'w' ? 'b' : 'w');
@@ -203,51 +232,6 @@ export default function ChessBoardScreen() {
       setSelectedSquare({ row, col });
       setPossibleMoves(getPossibleMoves(row, col, piece, board));
     }
-  };
-
-  // Create chess board squares
-  const squares = [];
-  for (let row = 0; row < boardSize; row++) {
-    for (let col = 0; col < boardSize; col++) {
-      const isLight = (row + col) % 2 === 0;
-      squares.push({
-        row,
-        col,
-        isLight,
-        key: `${row}-${col}`,
-      });
-    }
-  }
-
-  const resetGame = () => {
-    const freshBoard = INITIAL_BOARD.map(row => [...row]);
-
-    // Reset board
-    setBoard(freshBoard);
-
-    // Rebuild pieces from board (THIS is the correct way)
-    setPieces(buildPiecesFromBoard(freshBoard));
-
-    // Reset turn
-    setCurrentPlayer('w');
-
-    // Reset selection
-    setSelectedSquare(null);
-    setPossibleMoves([]);
-
-    // Reset timers
-    if (initialTime > 0) {
-      setWhiteTime(initialTime);
-      setBlackTime(initialTime);
-    }
-
-    // Reset animated pieces properly
-    Object.keys(animatedPieces).forEach(key => {
-      delete animatedPieces[key];
-    });
-
-    // Reset modal
-    setGameResult(null);
   };
 
   return (
@@ -278,11 +262,11 @@ export default function ChessBoardScreen() {
               currentPlayer={currentPlayer}
               isAIThinking={false}
               handleSquarePress={handleSquarePress} 
-              possibleMoves={possibleMoves}
               board={board}
               isInCheck={isInCheck}
               kingPosition={kingPosition}
               safeMoves={safeMoves}
+              playSound={() => kingCheckSoundRef.current?.replayAsync()}
             />
 
             {/* Animated Pieces */}
@@ -312,8 +296,18 @@ export default function ChessBoardScreen() {
           visible={!!gameResult}
           gameResult={gameResult}
           onRestart={() => {
-            resetGame();
-            setGameResult(null);
+            resetGame({
+              setBoard,
+              setPieces,
+              setCurrentPlayer,
+              setSelectedSquare,
+              setPossibleMoves,
+              setWhiteTime,
+              setBlackTime,
+              setGameResult,
+              initialTime,
+              animatedPieces,
+            });
           }}
         />
       </SafeAreaView>

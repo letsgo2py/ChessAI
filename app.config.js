@@ -8,6 +8,9 @@ module.exports = {
     scheme: 'chessapp',
     userInterfaceStyle: 'automatic',
     newArchEnabled: true,
+
+    assetBundlePatterns: ['**/*'],
+    
     ios: {
       supportsTablet: true
     },

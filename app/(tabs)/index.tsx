@@ -4,6 +4,8 @@ import { useState } from 'react';
 
 import { useTheme } from '@/contexts/ThemeContext';
 
+import { TimerSelector } from '../modal-timer';
+
 export default function HomeScreen() {
   const { theme } = useTheme();
   const router = useRouter();
@@ -25,12 +27,11 @@ export default function HomeScreen() {
     setShowOfflineModal(true);
   };
 
-  const handleSecondButtonPress = () => {
+  const handleAIChess = () => {
     setShowAIModal(true);
   };
 
   const handlePlayOffline = () => {
-    console.log('Timer selected:', selectedTime);
     const player1 = player1Name.trim() || 'Player 1';
     const player2 = player2Name.trim() || 'Player 2';
     const timeInSeconds = timeMap[selectedTime as keyof typeof timeMap] || 0;
@@ -49,14 +50,18 @@ export default function HomeScreen() {
     setPlayer2Name('');
   };
 
-  const handleAIOkPress = () => {
-    setShowAIModal(false);
+  const handlePlayAI = () => {
+    const timeInSeconds = timeMap[selectedTime as keyof typeof timeMap] || 0;
+
     router.push({
       pathname: '/chess-board-ai',
       params: {
         difficulty: aiDifficulty,
+        timer: timeInSeconds,
       },
     });
+
+    setShowAIModal(false);
   };
 
   return (
@@ -92,7 +97,12 @@ export default function HomeScreen() {
               onChangeText={setPlayer2Name}
             />
 
-            <View style={styles.timerContainer}>
+            <TimerSelector 
+              selectedTime={selectedTime}
+              onSelect={setSelectedTime}
+              theme={theme}
+            />
+            {/* <View style={styles.timerContainer}>
               {['No timer', '5 min', '10 min', '15 min'].map((time) => (
                 <TouchableOpacity
                   key={time}
@@ -112,7 +122,7 @@ export default function HomeScreen() {
                   </Text>
                 </TouchableOpacity>
               ))}
-            </View>
+            </View> */}
             
             <View style={styles.modalButtons}>
               <TouchableOpacity
@@ -133,6 +143,7 @@ export default function HomeScreen() {
                 <Text style={[styles.modalButtonText, { color: theme.primaryText }]}>OK</Text>
               </TouchableOpacity>
             </View>
+
           </View>
         </View>
       </Modal>
@@ -207,6 +218,12 @@ export default function HomeScreen() {
                 </Text>
               </TouchableOpacity>
             </View>
+
+            <TimerSelector 
+              selectedTime={selectedTime}
+              onSelect={setSelectedTime}
+              theme={theme}
+            />
             
             <View style={styles.modalButtons}>
               <TouchableOpacity
@@ -218,7 +235,7 @@ export default function HomeScreen() {
               
               <TouchableOpacity
                 style={[styles.modalButton, styles.okButton]}
-                onPress={handleAIOkPress}
+                onPress={handlePlayAI}
               >
                 <Text style={[styles.modalButtonText, { color: theme.primaryText }]}>Start Game</Text>
               </TouchableOpacity>
@@ -229,7 +246,7 @@ export default function HomeScreen() {
 
       <TouchableOpacity
         style={styles.button}
-        onPress={handleSecondButtonPress}
+        onPress={handleAIChess}
       >
         <Text style={styles.buttonText}>Play with AI</Text>
       </TouchableOpacity>

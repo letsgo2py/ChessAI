@@ -1,12 +1,10 @@
 import { pieceImages } from '@/constants/pieces';
+import {
+  BoardState,
+  Piece,
+} from '@/types/chess-types';
 
-export type Piece = {
-  row: number;
-  col: number;
-  type: keyof typeof pieceImages;
-};
-
-export const buildPiecesFromBoard = (board: string[][]): Record<string, Piece> => {
+export const buildPiecesFromBoard = (board: BoardState): Record<string, Piece> => {
   const result: Record<string, Piece> = {};
   let id = 0;
 

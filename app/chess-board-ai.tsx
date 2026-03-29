@@ -2,10 +2,10 @@ import { StyleSheet, View, Text, TouchableOpacity, Image, Animated, Dimensions }
 import { useLocalSearchParams } from 'expo-router';
 import { useState, useEffect, useRef, useMemo } from 'react';
 import { SafeAreaView, SafeAreaProvider } from 'react-native-safe-area-context';
-import { pieceImages } from '../constants/pieces';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import AntDesign from '@expo/vector-icons/AntDesign';
 import * as Haptics from 'expo-haptics';
+import { Audio } from "expo-av";
 import { useTheme } from '@/contexts/ThemeContext';
 
 import TopHeader from './top-header';
@@ -17,57 +17,56 @@ import { getPossibleMoves } from '@/utils/chessMoves';
 import { buildPiecesFromBoard } from '@/utils/chessPieces';
 
 import { INITIAL_BOARD } from '@/constants/chessBoard';
+import {
+  Player,
+  Pieces,
+  BoardState,
+  SelectedSquare,
+  AnimatedPieces,
+  GameState,
+  GameResult,
+  Move,
+  FullMove,
+  Difficulty,
+} from '@/types/chess-types';
+
+import { resetGame } from '@/utils/chess-reset';
+
+const kingCheckSound = require("../assets/sounds/king-check.mp3");
 
 import GameModal from "./chess-result";
 
-type AnimatedPiece = {
-  x: Animated.Value;
-  y: Animated.Value;
-};
-
-type SelectedSquare = {
-  key: string;
-  row: number;
-  col: number;
-};
 
 // const SQUARE_SIZE: number = 50;
 const screenWidth = Dimensions.get('window').width;
 const BOARD_SIZE = screenWidth * 0.97; // 97% of screen width
 const SQUARE_SIZE = Math.floor(BOARD_SIZE / 8);   // Each square size
 
-type Piece = {
-  row: number;
-  col: number;
-  type: keyof typeof pieceImages;
-};
-
-type Pieces = Record<string, Piece>;
-
-type GameState = {
-  pieces: Pieces;
-  currentPlayer: 'w' | 'b';
-};
-
 export default function ChessBoardAIScreen() {
   const { theme } = useTheme();
   const params = useLocalSearchParams();
-  const animatedPieces = useRef<Record<string, AnimatedPiece>>({}).current;
+  const animatedPieces = useRef<AnimatedPieces>({}).current;
   const playerName = (params.playerName as string) || 'Player';
-  const difficulty = (params.difficulty as 'easy' | 'medium' | 'hard') || 'medium';
+  const difficulty = (params.difficulty as Difficulty) || 'medium';
+  const initialTime = Array.isArray(params.timer)
+                        ? Number(params.timer[0])
+                        : Number(params.timer) || 0;
 
-  const [board, setBoard] = useState<string[][]>(INITIAL_BOARD.map(row => [...row]));   // cloning the initial board
+  const [whiteTime, setWhiteTime] = useState(initialTime); 
+  const [blackTime, setBlackTime] = useState(initialTime);
+
+  const [board, setBoard] = useState<BoardState>(INITIAL_BOARD.map(row => [...row]));   // cloning the initial board
   const [selectedSquare, setSelectedSquare] = useState<SelectedSquare | null>(null);
-  const [possibleMoves, setPossibleMoves] = useState<Array<{row: number, col: number}>>([]);
-  const [currentPlayer, setCurrentPlayer] = useState<'w' | 'b'>('w');
+  const [possibleMoves, setPossibleMoves] = useState<Array<Move>>([]);
+  const [currentPlayer, setCurrentPlayer] = useState<Player>('w');
   const [isAIThinking, setIsAIThinking] = useState(false);
-  const [gameResult, setGameResult] = useState<null | {type: "checkmate" | "stalemate"; winner?: "w" | "b"}>(null);
+  const [gameResult, setGameResult] = useState<GameResult>(null);
 
   const [undoStack, setUndoStack] = useState<GameState[]>([]);
   const [redoStack, setRedoStack] = useState<GameState[]>([]);
 
-  const [whiteTime, setWhiteTime] = useState(5 * 60); // 5 min
-  const [blackTime, setBlackTime] = useState(5 * 60);
+
+  const kingCheckSoundRef = useRef<Audio.Sound | null>(null);
 
   const [pieces, setPieces] = useState<Pieces>(
     buildPiecesFromBoard(INITIAL_BOARD.map(row => [...row]))
@@ -90,6 +89,27 @@ export default function ChessBoardAIScreen() {
       }),
     [board, currentPlayer]
   );
+
+  useEffect(() => {
+    const loadSounds = async () => {
+      // const { sound: moveSound } = await Audio.Sound.createAsync(pieceSound);
+      // pieceSoundRef.current = moveSound;
+
+      const { sound: kingInHelpSound} = await Audio.Sound.createAsync(kingCheckSound);
+      kingCheckSoundRef.current = kingInHelpSound;
+
+      // const { sound } = await Audio.Sound.createAsync(checkmateSound);
+      // checkmateSoundRef.current = sound;
+    };
+
+    loadSounds();
+
+    return () => {
+      // pieceSoundRef.current?.unloadAsync();
+      kingCheckSoundRef.current?.unloadAsync();
+      // checkmateSoundRef.current?.unloadAsync();
+    };
+  }, []);
 
   useEffect(() => {
     if (allSafeMoves.length === 0) {
@@ -155,8 +175,8 @@ export default function ChessBoardAIScreen() {
   };
 
     // Get all possible moves for a player
-    const getAllMoves = (playerColor: 'w' | 'b', boardState: string[][]): Array<{from: {row: number, col: number}, to: {row: number, col: number}}> => {
-      const allMoves: Array<{from: {row: number, col: number}, to: {row: number, col: number}}> = [];
+    const getAllMoves = (playerColor: Player, boardState: BoardState): Array<FullMove> => {
+      const allMoves: Array<FullMove> = [];
       
       for (let row = 0; row < 8; row++) {
         for (let col = 0; col < 8; col++) {
@@ -176,9 +196,9 @@ export default function ChessBoardAIScreen() {
     const getLegalMovesForPiece = (
       fromRow: number,
       fromCol: number,
-      color: 'w' | 'b',
-      boardState: string[][]
-    ): Array<{ row: number; col: number }> => {
+      color: Player,
+      boardState: BoardState
+    ): Array<Move> => {
       const allLegalMoves = getLegalMoves(color, boardState);
 
       return allLegalMoves
@@ -192,8 +212,8 @@ export default function ChessBoardAIScreen() {
 
 
     const getLegalMoves = (
-      currentPlayer: 'w' | 'b',
-      boardState: string[][]
+      currentPlayer: Player,
+      boardState: BoardState
     ) => {
       const moves = getAllMoves(currentPlayer, boardState);
 
@@ -211,7 +231,7 @@ export default function ChessBoardAIScreen() {
       });
     };
 
-    const evaluateBoard = (board: string[][]): number => {
+    const evaluateBoard = (board: BoardState): number => {
       const values: Record<string, number> = {
         bp: 1, bn: 3, bb: 3, br: 5, bq: 9, bk: 100,
         wp: -1, wn: -3, wb: -3, wr: -5, wq: -9, wk: -100,
@@ -230,7 +250,7 @@ export default function ChessBoardAIScreen() {
     };
 
     const minimax = (
-      board: string[][],
+      board: BoardState,
       depth: number,
       isMaximizing: boolean
     ): number => {
@@ -266,7 +286,7 @@ export default function ChessBoardAIScreen() {
     };
 
     const chooseBestMoveMinimax = (
-      board: string[][],
+      board: BoardState,
       depth: number
     ) => {
       const moves = getLegalMoves('b', board);
@@ -290,7 +310,7 @@ export default function ChessBoardAIScreen() {
     };
 
 
-    const makeAIMove = (currentBoard: string[][]) => {
+    const makeAIMove = (currentBoard: BoardState) => {
       if (redoStack.length > 0) return;
       setIsAIThinking(true);
 
@@ -560,35 +580,6 @@ export default function ChessBoardAIScreen() {
       syncAnimatedPieces(nextState.pieces);
     };
 
-    const resetGame = () => {
-      const freshBoard = INITIAL_BOARD.map(row => [...row]);
-
-      // Reset board
-      setBoard(freshBoard);
-
-      // Rebuild pieces from board (THIS is the correct way)
-      setPieces(buildPiecesFromBoard(freshBoard));
-
-      // Reset turn
-      setCurrentPlayer('w');
-
-      // Reset selection
-      setSelectedSquare(null);
-      setPossibleMoves([]);
-
-      // Reset timers
-      setWhiteTime(5*60);
-      setBlackTime(5*60);
-    
-      // Reset animated pieces properly
-      Object.keys(animatedPieces).forEach(key => {
-        delete animatedPieces[key];
-      });
-
-      // Reset modal
-      setGameResult(null);
-    };
-
   return (
     <SafeAreaProvider>
       <SafeAreaView style={[styles.container, { backgroundColor: theme.bg }]}>
@@ -606,10 +597,12 @@ export default function ChessBoardAIScreen() {
             </View>
 
             {/* Black Player Timer*/}
-            <View style={styles.timerDiv}>
-              <AntDesign name="clock-circle" size={14} color="white" />
-              <Text style={styles.timerText}>{formatTime(blackTime)}</Text>
-            </View>
+            {initialTime > 0 && (
+              <View style={styles.timerDiv}>
+                <AntDesign name="clock-circle" size={14} color="white" />
+                <Text style={styles.timerText}>{formatTime(blackTime)}</Text>
+              </View>
+            )}
 
           </View>
 
@@ -620,11 +613,11 @@ export default function ChessBoardAIScreen() {
               currentPlayer={currentPlayer}
               isAIThinking={isAIThinking}
               handleSquarePress={handleSquarePress} 
-              possibleMoves={possibleMoves}
               board={board}
               isInCheck={isInCheck}
               kingPosition={kingPosition}
               safeMoves={safeMoves}
+              playSound={() => kingCheckSoundRef.current?.replayAsync()}
             />
 
             {/* Animated Pieces */}
@@ -661,10 +654,12 @@ export default function ChessBoardAIScreen() {
                 <Text style={styles.playerNameTextWhite}>{playerName}</Text>
               </View>
               {/* White Player Timer */}
-              <View style={styles.timerDiv}>
-                <AntDesign name="clock-circle" size={14} color="white" />
-                <Text style={styles.timerText}>{formatTime(whiteTime)}</Text>
-              </View>
+              {initialTime > 0 && (
+                <View style={styles.timerDiv}>
+                  <AntDesign name="clock-circle" size={14} color="white" />
+                  <Text style={styles.timerText}>{formatTime(whiteTime)}</Text>
+                </View>
+              )}
             </View>
 
           </View>
@@ -674,8 +669,18 @@ export default function ChessBoardAIScreen() {
           visible={!!gameResult}
           gameResult={gameResult}
           onRestart={() => {
-            resetGame();
-            setGameResult(null);
+            resetGame({
+              setBoard,
+              setPieces,
+              setCurrentPlayer,
+              setSelectedSquare,
+              setPossibleMoves,
+              setWhiteTime,
+              setBlackTime,
+              setGameResult,
+              initialTime,
+              animatedPieces,
+            });
           }}
         />
       </SafeAreaView>

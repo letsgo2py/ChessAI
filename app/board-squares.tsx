@@ -16,11 +16,11 @@ type BoardSquaresProps = {
   currentPlayer: 'w' | 'b';
   isAIThinking: boolean;
   handleSquarePress: (row: number, col: number) => void;
-  possibleMoves: Square[];
   board: string[][];
   isInCheck: boolean;
   kingPosition: Square | null;
   safeMoves: Square[];
+  playSound: () => void;
 };
 
 const boardSize = 8;
@@ -33,11 +33,11 @@ function BoardSquares({
   currentPlayer,
   isAIThinking,
   handleSquarePress,
-  possibleMoves,
   board,
   isInCheck,
   kingPosition,
-  safeMoves
+  safeMoves,
+  playSound
 } : BoardSquaresProps) {
 
   const getSquareHighlightStyle = (row: number, col: number) => {
@@ -47,6 +47,7 @@ function BoardSquares({
       row === kingPosition.row &&
       col === kingPosition.col
     ) {
+      playSound();
       return styles.checkSquare;
     }
 

@@ -1,9 +1,5 @@
 import { Animated } from 'react-native';
-
-export type AnimatedPiece = {
-  x: Animated.Value;
-  y: Animated.Value;
-};
+import { AnimatedPiece } from '@/types/chess-types';
 
 export const getAnimatedValue = (
   animatedPieces: Record<string, AnimatedPiece>,
